@@ -876,6 +876,8 @@ private struct SettingsQuitButton: View {
 
 struct SettingsWindowConfigurator: NSViewRepresentable {
     let title: String
+    var outerSize: NSSize? = nil
+    var movableByBackground = true
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView(frame: .zero)
@@ -901,8 +903,22 @@ struct SettingsWindowConfigurator: NSViewRepresentable {
             alpha: 1
         )
         window.isOpaque = true
-        window.isMovableByWindowBackground = true
+        window.isMovableByWindowBackground = movableByBackground
         window.hasShadow = true
+        if let outerSize,
+           abs(window.frame.width - outerSize.width) > 1
+            || abs(window.frame.height - outerSize.height) > 1 {
+            let oldFrame = window.frame
+            window.setFrame(
+                NSRect(
+                    x: oldFrame.minX,
+                    y: oldFrame.maxY - outerSize.height,
+                    width: outerSize.width,
+                    height: outerSize.height
+                ),
+                display: true
+            )
+        }
     }
 }
 

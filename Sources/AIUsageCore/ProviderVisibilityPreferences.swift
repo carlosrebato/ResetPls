@@ -101,4 +101,18 @@ public enum ProviderOrderPreferences {
             forKey: key
         )
     }
+
+    public static func move(
+        _ provider: UsageProviderID,
+        to target: UsageProviderID,
+        in defaults: UserDefaults = ProviderVisibilityPreferences.store
+    ) {
+        var order = ordered(in: defaults)
+        guard provider != target,
+              let from = order.firstIndex(of: provider),
+              let destination = order.firstIndex(of: target) else { return }
+        order.remove(at: from)
+        order.insert(provider, at: destination)
+        defaults.set(order.map(\.rawValue), forKey: key)
+    }
 }

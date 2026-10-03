@@ -35,6 +35,8 @@ struct OnboardingView: View {
     @StateObject private var launchAtLogin = LaunchAtLoginController()
     @State private var busyProvider: UsageProviderID?
     @State private var accessError: String?
+    @State private var dropTarget: UsageProviderID?
+    @State private var draggedProvider: UsageProviderID?
 
     var body: some View {
         Group {
@@ -152,7 +154,10 @@ struct OnboardingView: View {
                 .accessibilityHidden(true)
         }
         .ignoresSafeArea(.container, edges: .top)
-        .background(SettingsWindowConfigurator(title: windowTitle))
+        .background(SettingsWindowConfigurator(
+            title: windowTitle,
+            outerSize: NSSize(width: 520, height: 590)
+        ))
         .preferredColorScheme(.dark)
     }
 
@@ -223,42 +228,15 @@ struct OnboardingView: View {
                 .padding(.horizontal, 20)
 
                 HStack(spacing: 8) {
-                    Text(language.text("DISPLAY ORDER", "ORDEN DE VISUALIZACIÓN"))
-                        .font(.system(size: 10, weight: .semibold))
-                        .tracking(1)
-                        .foregroundStyle(SettingsPalette.secondary)
-                    Spacer()
-                    Menu {
-                        ForEach(UsageProviderID.allCases, id: \.self) { provider in
-                            Button {
-                                providerSelection.setFirst(provider)
-                            } label: {
-                                if providerSelection.orderedProviders.first == provider {
-                                    Label(provider.displayName, systemImage: "checkmark")
-                                } else {
-                                    Text(provider.displayName)
-                                }
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Text(language.text("First: ", "Primero: ")
-                                + (providerSelection.orderedProviders.first?.displayName ?? "Claude Code"))
-                            Image(systemName: "chevron.up.chevron.down")
-                                .font(.system(size: 9, weight: .semibold))
-                        }
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .foregroundStyle(SettingsPalette.accent)
-                        .fixedSize(horizontal: true, vertical: false)
-                    }
-                    .menuStyle(.borderlessButton)
-                    .menuIndicator(.hidden)
-                    .fixedSize()
+                    Image(systemName: "line.3.horizontal")
+                    Text(language.text(
+                        "Drag assistants to reorder them everywhere",
+                        "Arrastra los asistentes para cambiar su orden en todas las vistas"
+                    ))
                 }
-                .accessibilityHint(language.text(
-                    "Changes the order in the menu bar and all panels",
-                    "Cambia el orden en la barra de menú y en todos los paneles"
-                ))
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(SettingsPalette.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 VStack(spacing: 10) {
                     ForEach(providerSelection.orderedProviders, id: \.self) { provider in
@@ -306,7 +284,8 @@ struct OnboardingView: View {
             .padding(.horizontal, 28)
             .padding(.bottom, 22)
         }
-        .frame(width: 520, height: 468)
+        .frame(width: 520)
+        .frame(maxHeight: .infinity)
         .background(SettingsPalette.backgroundGradient)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
@@ -323,7 +302,10 @@ struct OnboardingView: View {
                 .accessibilityHidden(true)
         }
         .ignoresSafeArea(.container, edges: .top)
-        .background(SettingsWindowConfigurator(title: windowTitle))
+        .background(SettingsWindowConfigurator(
+            title: windowTitle,
+            movableByBackground: false
+        ))
         .preferredColorScheme(.dark)
     }
 
@@ -337,6 +319,7 @@ struct OnboardingView: View {
                 .frame(height: 1)
         }
         .contentShape(Rectangle())
+        .gesture(WindowDragGesture())
         .accessibilityHidden(true)
     }
 
@@ -348,7 +331,15 @@ struct OnboardingView: View {
                 for: metricsDirectory(for: provider)
             )
 
-        return HStack(spacing: 14) {
+        return HStack(spacing: isOnboarding ? 14 : 8) {
+            if !isOnboarding {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(SettingsPalette.secondary)
+                    .frame(width: 12, height: 38)
+                    .accessibilityHidden(true)
+            }
+
             ProviderGlyph(provider: provider, size: 18, color: SettingsPalette.glyph)
                 .frame(width: 38, height: 38)
                 .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 10))
@@ -375,14 +366,14 @@ struct OnboardingView: View {
                     .padding(.leading, state.indicator == .busy ? 0 : 15)
             }
 
-            Spacer(minLength: 8)
+            Spacer(minLength: isOnboarding ? 8 : 4)
 
             if state.indicator == .busy {
                 ProgressView()
                     .controlSize(.small)
                     .tint(SettingsPalette.accent)
             } else {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     if connected {
                         ManagementVisibilityButton(
                             isVisible: isProviderVisible(provider),
@@ -417,7 +408,7 @@ struct OnboardingView: View {
                 .disabled(busyProvider != nil)
             }
         }
-        .padding(.horizontal, 17)
+        .padding(.horizontal, isOnboarding ? 17 : 14)
         .padding(.vertical, 16)
         .background {
             if connected {
@@ -429,8 +420,30 @@ struct OnboardingView: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(
+                    dropTarget == provider ? SettingsPalette.accent.opacity(0.85)
+                        : Color.white.opacity(0.08),
+                    lineWidth: dropTarget == provider ? 2 : 1
+                )
         }
+        .onDrag {
+            draggedProvider = provider
+            return NSItemProvider(object: provider.rawValue as NSString)
+        }
+        .onDrop(
+            of: ["public.utf8-plain-text"],
+            delegate: ProviderReorderDropDelegate(
+                target: provider,
+                draggedProvider: $draggedProvider,
+                dropTarget: $dropTarget,
+                selection: providerSelection,
+                enabled: !isOnboarding
+            )
+        )
+        .accessibilityHint(language.text(
+            "Drag to change the order in the menu bar and panels",
+            "Arrastra para cambiar el orden en la barra de menú y los paneles"
+        ))
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(provider.displayName), \(state.title), \(state.subtitle)")
     }
@@ -903,6 +916,39 @@ struct OnboardingView: View {
         colorScheme == .dark
             ? UsageTheme.red
             : Color(red: 211 / 255, green: 66 / 255, blue: 63 / 255)
+    }
+}
+
+private struct ProviderReorderDropDelegate: DropDelegate {
+    let target: UsageProviderID
+    @Binding var draggedProvider: UsageProviderID?
+    @Binding var dropTarget: UsageProviderID?
+    let selection: ProviderSelectionStore
+    let enabled: Bool
+
+    func validateDrop(info: DropInfo) -> Bool {
+        enabled && draggedProvider != nil
+    }
+
+    func dropEntered(info: DropInfo) {
+        guard enabled, let draggedProvider, draggedProvider != target else { return }
+        dropTarget = target
+        selection.move(draggedProvider, to: target)
+    }
+
+    func dropExited(info: DropInfo) {
+        if dropTarget == target { dropTarget = nil }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        guard enabled, draggedProvider != nil else { return false }
+        draggedProvider = nil
+        dropTarget = nil
+        return true
     }
 }
 

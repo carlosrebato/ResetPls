@@ -11,6 +11,10 @@ struct UsageSnapshotTests {
         #expect(ProviderOrderPreferences.ordered(in: defaults) == [.claude, .codex])
         ProviderOrderPreferences.setFirst(.codex, in: defaults)
         #expect(ProviderOrderPreferences.ordered(in: defaults) == [.codex, .claude])
+        ProviderOrderPreferences.move(.codex, to: .claude, in: defaults)
+        #expect(ProviderOrderPreferences.ordered(in: defaults) == [.claude, .codex])
+        ProviderOrderPreferences.move(.codex, to: .claude, in: defaults)
+        #expect(ProviderOrderPreferences.ordered(in: defaults) == [.codex, .claude])
         defaults.set(["codex", "unknown", "codex"], forKey: ProviderOrderPreferences.key)
         #expect(ProviderOrderPreferences.ordered(in: defaults) == [.codex, .claude])
     }

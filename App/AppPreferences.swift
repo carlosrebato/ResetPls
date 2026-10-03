@@ -66,6 +66,12 @@ final class ProviderSelectionStore: ObservableObject {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
+    func move(_ provider: UsageProviderID, to target: UsageProviderID) {
+        ProviderOrderPreferences.move(provider, to: target)
+        orderedProviders = ProviderOrderPreferences.ordered()
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     func filtering(_ snapshots: [ProviderUsageSnapshot]) -> [ProviderUsageSnapshot] {
         orderedProviders.compactMap { provider in
             snapshots.first { $0.id == provider && activeProviders.contains(provider) }

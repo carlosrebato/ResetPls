@@ -35,7 +35,7 @@ struct AIUsageMacApp: App {
         }
         .defaultSize(width: 520, height: 468)
         .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
+        .windowResizability(.automatic)
         .defaultLaunchBehavior(.suppressed)
 
         Window("ResetPls HUD", id: "floating") {
