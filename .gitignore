@@ -1,6 +1,7 @@
 .build/
 .artifacts/
 .derivedData/
+.derivedData-ios/
 DerivedData/
 .swiftpm/
 AIUsage [0-9]*.xcodeproj/

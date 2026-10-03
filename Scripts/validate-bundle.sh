@@ -2,7 +2,7 @@
 
 set -eu
 
-APP_PATH="${1:-.derivedData/Build/Products/Release/AI Usage.app}"
+APP_PATH="${1:-.derivedData/Build/Products/Release/ResetPls.app}"
 EXPECTED_APP_ID="${AI_USAGE_APP_BUNDLE_ID:-com.example.aiusage}"
 EXPECTED_WIDGET_ID="${AI_USAGE_WIDGET_BUNDLE_ID:-$EXPECTED_APP_ID.widgets}"
 
@@ -14,7 +14,7 @@ fail() {
 [ -d "$APP_PATH" ] || fail "app not found at $APP_PATH"
 
 APP_INFO="$APP_PATH/Contents/Info.plist"
-APP_EXECUTABLE="$APP_PATH/Contents/MacOS/AI Usage"
+APP_EXECUTABLE="$APP_PATH/Contents/MacOS/ResetPls"
 PLUGINS_PATH="$APP_PATH/Contents/PlugIns"
 SPARKLE_PATH="$APP_PATH/Contents/Frameworks/Sparkle.framework"
 
@@ -58,4 +58,4 @@ AUTOMATIC_INSTALLS="$(read_plist "$APP_INFO" SUAutomaticallyUpdate)"
 
 lipo "$APP_EXECUTABLE" -verify_arch arm64 >/dev/null 2>&1 || fail "app does not contain arm64"
 
-echo "Validated AI Usage $APP_VERSION ($APP_BUILD) with WidgetKit and Sparkle auto-update."
+echo "Validated ResetPls $APP_VERSION ($APP_BUILD) with WidgetKit and Sparkle auto-update."

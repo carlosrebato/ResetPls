@@ -6,7 +6,7 @@ ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 DERIVED_DATA="${AI_USAGE_DERIVED_DATA:-/private/tmp/AIUsageMacGroupDerivedData}"
 : "${AI_USAGE_DEVELOPMENT_TEAM:?Set AI_USAGE_DEVELOPMENT_TEAM to your Apple team ID}"
 DEVELOPMENT_TEAM="$AI_USAGE_DEVELOPMENT_TEAM"
-APP_PATH="$DERIVED_DATA/Build/Products/Debug/AI Usage.app"
+APP_PATH="$DERIVED_DATA/Build/Products/Debug/ResetPls.app"
 EXPECTED_BUNDLE_ID="${AI_USAGE_APP_BUNDLE_ID:-com.example.aiusage}"
 EXPECTED_APP_GROUP="${AI_USAGE_APP_GROUP:-group.com.example.aiusage}"
 
@@ -41,7 +41,7 @@ if [ "$ACTUAL_TEAM" != "$DEVELOPMENT_TEAM" ]; then
 fi
 
 APP_ENTITLEMENTS="$(codesign -d --entitlements - --xml "$APP_PATH" 2>/dev/null)"
-WIDGET_PATH="$APP_PATH/Contents/PlugIns/AI Usage Widgets.appex"
+WIDGET_PATH="$APP_PATH/Contents/PlugIns/ResetPls Widgets.appex"
 WIDGET_ENTITLEMENTS="$(codesign -d --entitlements - --xml "$WIDGET_PATH" 2>/dev/null)"
 NORMALIZED_APP_ENTITLEMENTS="$(printf '%s' "$APP_ENTITLEMENTS" | tr -d '[:space:]')"
 if ! printf '%s' "$NORMALIZED_APP_ENTITLEMENTS" | grep -Fq '<key>com.apple.security.app-sandbox</key><true/>'; then

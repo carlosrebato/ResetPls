@@ -1,12 +1,34 @@
 # Changelog
 
-All notable changes to AI Usage for Mac are documented here.
+All notable changes to ResetPls for Mac are documented here.
+
+## 0.1.3-beta.1 — 2026-09-22
+
+- Centralize Claude and Codex connection flows so every screen presents the
+  same atomic provider state.
+- Prevent reconnection cancellation and delayed OAuth propagation from leaving
+  stale errors, false connected states or crashes.
+- Stop disconnected providers from contributing local metrics or a synthetic
+  current-day chart point.
+- Preserve the newest metrics candidate when refreshes overlap.
+- Restore concrete Claude and Codex plan names and accept Claude reset times
+  with fractional seconds or numeric Unix timestamps.
+- Keep providers visibly connected during a temporary rate limit when a saved
+  reading is available, preserving plan names, counters and reset timers.
+- Distinguish saved or stale readings in orange across the menu bar, dashboard,
+  Settings, assistant management, detached panel, widget and iOS app; yellow is
+  now reserved for elevated quota consumption.
+- Add privacy-safe diagnostic export, release-readiness checks and three-launch
+  signed smoke tests.
+- Raise muted text contrast to WCAG AA and add Help, Privacy and issue links.
+- Verify a 90-day incremental index against a clean rebuild over 1.47 GB of
+  local JSONL history.
 
 ## 0.1.1-beta.4 — 2026-08-18
 
 - Replace the Terminal-based Claude Code login with a native browser OAuth flow
   using PKCE and an automatic localhost callback.
-- Store the resulting Claude token in AI Usage's own Keychain item; the app
+- Store the resulting Claude token in ResetPls's own Keychain item; the app
   never receives the user's password and no code needs to be copied or pasted.
 - Ship the signed app with its explicit Keychain access group and verify a real
   write/read/delete cycle before a release can pass the signed smoke test.
@@ -16,7 +38,7 @@ All notable changes to AI Usage for Mac are documented here.
 
 - Replace the misleading Claude Desktop launch action with an explicit Claude
   Code login command that is copied before opening Terminal.
-- Refresh connection state automatically when the user returns to AI Usage.
+- Refresh connection state automatically when the user returns to ResetPls.
 - Remove the transparent strip below onboarding and assistant management
   windows by filling the full content height with an opaque background.
 - Package release ZIPs without AppleDouble metadata and verify the conventionally

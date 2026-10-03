@@ -1,10 +1,14 @@
-# AI Usage — Claude Code & Codex Usage Tracker for Mac and iPhone
+# ResetPls — Claude Code & Codex Usage Tracker for Mac and iPhone
+
+> Private historical snapshot in NSPanel. The maintained source, current builds,
+> and releases live at [carlosrebato/ai-usage-mac](https://github.com/carlosrebato/ai-usage-mac).
+> Do not publish ResetPls from this copy.
 
 [![CI](https://github.com/carlosrebato/ai-usage-mac/actions/workflows/ci.yml/badge.svg)](https://github.com/carlosrebato/ai-usage-mac/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/carlosrebato/ai-usage-mac?include_prereleases)](https://github.com/carlosrebato/ai-usage-mac/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-AI Usage is an independent, local-first Mac and iPhone app for tracking Claude
+ResetPls is an independent, local-first Mac and iPhone app for tracking Claude
 Code and OpenAI Codex usage limits, reset times, tokens and estimated cost. It
 reads local counters in read-only mode and never sends conversation content or
 credentials to the project maintainers.
@@ -13,7 +17,7 @@ credentials to the project maintainers.
 
 Download the latest notarized macOS ZIP from
 [GitHub Releases](https://github.com/carlosrebato/ai-usage-mac/releases), unzip it
-and move **AI Usage.app** to Applications. The current release is a public beta;
+and move **ResetPls.app** to Applications. The current release is a public beta;
 please report reproducible issues without attaching credentials or conversation
 logs.
 
@@ -21,11 +25,33 @@ logs.
 
 - macOS 15 or iOS 18 (the iOS target is currently an App Review viability spike)
 - A Claude or ChatGPT account. Each device signs in independently through the
-  provider; AI Usage never imports a Claude Code, Codex CLI or desktop token.
+  provider; ResetPls never imports a Claude Code, Codex CLI or desktop token.
 
 You can enable Claude, Codex or both. The Claude and Codex desktop apps are not
-required; AI Usage uses the existing local sessions created by their command-line
-tools.
+required for live limits: ResetPls signs in to each provider independently.
+Their command-line tools are optional and are used only when you choose to add
+local token, activity and estimated-cost history on Mac.
+
+### Provider compatibility and pricing
+
+The supported configuration is macOS 15 or later with a current Claude or
+ChatGPT web account. ResetPls does not depend on a particular Claude Code or
+Codex CLI version for authentication or live limits. Optional local-history
+imports are tested against the current stable CLI formats at release time;
+unknown JSON fields are ignored, and an incompatible local format must degrade
+to live limits instead of changing connection state.
+
+Claude and Codex limit endpoints are not documented for third-party clients and
+can change without notice. Every release is smoke-tested against both providers;
+a provider can be disabled independently if compatibility breaks. Supported
+capabilities and the release-blocking checks are documented in
+[OAUTH_CAPABILITIES.md](OAUTH_CAPABILITIES.md).
+
+Cost figures are estimates, never billing data. Model prices are versioned in
+source, reviewed against the providers' public pricing pages before each release,
+and updated in a normal app release when pricing changes. Unknown models remain
+in token totals but do not inherit a guessed price. Users should use Anthropic
+or OpenAI billing records for financial decisions.
 
 ### Requirements for contributors
 
@@ -46,6 +72,11 @@ Run the `AIUsageMac` scheme from Xcode when testing access to Claude's local
 data. `swift run AIUsageMac` uses an ad-hoc signature that changes after a
 rebuild, so macOS cannot reliably reuse TCC or Keychain permissions for it.
 
+Run the `AIUsageIOS` scheme on an iOS 18 simulator or device for the iPhone and
+iPad app. The iOS app stores provider credentials in the device-only Keychain
+and keeps the last useful usage snapshot in Application Support so temporary
+network failures do not leave the dashboard empty.
+
 For a stable signed development build, register your own bundle IDs and App
 Group in Apple Developer, then run:
 
@@ -58,7 +89,7 @@ Scripts/build-signed-debug.sh
 
 The script builds outside synced folders, validates the signature, bundle ID
 and App Group, and avoids Finder metadata that can invalidate `codesign`. Install
-the app you use regularly at `/Applications/AI Usage.app`.
+the app you use regularly at `/Applications/ResetPls.app`.
 
 The public project defaults to `com.example.aiusage` and
 `group.com.example.aiusage`. Official releases override the build settings
@@ -68,10 +99,10 @@ are never stored in the repository.
 
 ## How it works
 
-AI Usage opens a native dashboard and adds usage indicators to the menu bar.
+ResetPls opens a native dashboard and adds usage indicators to the menu bar.
 Claude and Codex sign in through browser OAuth with PKCE, random state and a
 different refresh-token family on every device. Tokens are stored in a
-non-synchronizable `ThisDeviceOnly` Keychain item. AI Usage never receives the
+non-synchronizable `ThisDeviceOnly` Keychain item. ResetPls never receives the
 user's password or reads another app's credential files. It then requests the
 current limits directly from provider endpoints. Those usage endpoints are not
 documented as third-party APIs and may change without notice.
@@ -104,9 +135,9 @@ Optional access to `~/.claude` and `~/.codex` is read-only and is used only for
 local token/activity/cost history on Mac. It is never used for authentication.
 For limit stability, Mac can fall back to Claude's numeric statusline artifact
 or the documented `codex app-server` rate-limit method; neither exposes a token
-to AI Usage. iPhone always updates directly and does not depend on the Mac.
+to ResetPls. iPhone always updates directly and does not depend on the Mac.
 
-AI Usage is not affiliated with, endorsed by or sponsored by Anthropic or
+ResetPls is not affiliated with, endorsed by or sponsored by Anthropic or
 OpenAI. See [OAUTH_CAPABILITIES.md](OAUTH_CAPABILITIES.md) for exact scopes and
 [APP_REVIEW.md](APP_REVIEW.md) for the blocking distribution gate.
 
@@ -123,6 +154,14 @@ Run the unit suite:
 swift test
 ```
 
+Build and test the iOS target without signing:
+
+```sh
+xcodebuild -project AIUsage.xcodeproj -scheme AIUsageIOS \
+  -destination 'platform=iOS Simulator,name=iPhone 16,OS=18.5' \
+  CODE_SIGNING_ALLOWED=NO test
+```
+
 The real local-provider checks are opt-in:
 
 ```sh
@@ -133,7 +172,7 @@ RUN_CLAUDE_INTEGRATION_TEST=1 swift test --filter probesTheLocalClaudeLogin
 Permission persistence must be tested with a stably signed bundle, not SwiftPM:
 
 ```sh
-Scripts/smoke-test-signed-app.sh "/Applications/AI Usage.app" 3
+Scripts/smoke-test-signed-app.sh "/Applications/ResetPls.app" 3
 ```
 
 To reproduce the unsigned diagnostic bundle built by CI:

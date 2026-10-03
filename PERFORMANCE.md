@@ -1,6 +1,6 @@
 # Performance
 
-AI Usage is designed to remain idle between provider refreshes and to ingest
+ResetPls is designed to remain idle between provider refreshes and to ingest
 only appended Claude and Codex session data.
 
 ## Release 0.1.0 baseline
@@ -33,6 +33,21 @@ later unchanged scans did not re-read or re-aggregate the historical database.
 The raw CSV is intentionally generated locally rather than committed because
 it contains timestamps and machine-specific process characteristics.
 
+## Index correctness benchmark
+
+On 22 September 2026, the opt-in index benchmark processed 1,468,263,432 bytes
+across the retained 90-day Claude and Codex history. An immediate incremental
+pass read zero bytes. A second database rebuilt from scratch produced identical
+weekly token/cost totals and identical daily token series for both providers.
+The two complete imports and comparison finished in 213.2 seconds.
+
+Reproduce locally without printing conversation content:
+
+```sh
+RUN_LOCAL_METRICS_BENCHMARK=1 swift test \
+  --filter indexesRealLogsOnceAndMatchesACleanRebuild
+```
+
 ## Reproduce
 
 Build and install a signed Release, find its PID, then run:
@@ -45,3 +60,18 @@ Scripts/measure-release-performance.sh PID 3600 10 \
 Do not run Xcode builds, test suites, secret scanners, or other heavy jobs during
 the measurement. Compare average and median values, the 95th percentile, disk
 deltas, and whether RSS trends upward over time.
+
+## Exact-period metrics correction (1 October 2026)
+
+Weekly totals now cache indexed events and use exact timestamp boundaries. An
+unchanged selection reuses its token and cost aggregate; changing the requested
+period updates the returned dates and recomputes only if the selected events
+change. Claude deduplication is applied after selecting the period. This cache
+retains events in memory for the requested range, which changes the memory
+profile relative to the older aggregate-only cache.
+
+Daily totals cache exact start and end timestamps rather than calendar days.
+Changing a cutoff within the same day can therefore trigger a SQLite query,
+but it does not reread JSONL history. The fifteen-minute incremental import
+interval remains unchanged. The older Release baseline above has not been
+remeasured for these changes.

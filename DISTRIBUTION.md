@@ -1,10 +1,10 @@
-# Distributing AI Usage for Mac
+# Distributing ResetPls for Mac
 
 ## What CI validates
 
 Every change runs the test suite, regenerates the Xcode project, builds the app
 and widget in Release, and validates the bundle structure. GitHub retains an
-`AI-Usage-unsigned-diagnostic` ZIP for seven days.
+`ResetPls-unsigned-diagnostic` ZIP for seven days.
 
 That artifact is unsigned and must not be published as a release. It exists to
 catch compilation errors, version mismatches and malformed WidgetKit bundles.
@@ -50,7 +50,7 @@ Before publishing, complete onboarding in the installed app and run:
 
 ```sh
 AI_USAGE_EXPECTED_BUNDLE_ID=com.carlosrebato.aiusage \
-Scripts/smoke-test-signed-app.sh "/Applications/AI Usage.app" 3
+Scripts/smoke-test-signed-app.sh "/Applications/ResetPls.app" 3
 ```
 
 Repeat the install and smoke test in a clean macOS user account or another Mac.
@@ -63,13 +63,13 @@ separate `notarytool` profile:
 
 ```sh
 xcodebuild -exportArchive \
-  -archivePath "/path/AI Usage.xcarchive" \
+  -archivePath "/path/ResetPls.xcarchive" \
   -exportPath "/path/upload" \
   -exportOptionsPlist Configurations/ExportOptions-DeveloperID-Upload.plist \
   -allowProvisioningUpdates
 
 xcodebuild -exportNotarizedApp \
-  -archivePath "/path/AI Usage.xcarchive" \
+  -archivePath "/path/ResetPls.xcarchive" \
   -exportPath "/path/notarized"
 ```
 
@@ -86,17 +86,17 @@ xcrun notarytool store-credentials AIUsage-notary \
   --password "APP_SPECIFIC_PASSWORD"
 
 Scripts/notarize-signed-app.sh \
-  "/path/AI Usage.app" \
+  "/path/ResetPls.app" \
   AIUsage-notary
 ```
 
 The script rejects apps not signed with `Developer ID Application`, waits for
 Apple, staples and validates the ticket, checks Gatekeeper and creates
-`AI Usage-notarized.zip`.
+`ResetPls-notarized.zip`.
 
 ## Publish an automatic update
 
-AI Usage uses Sparkle. The public EdDSA key is embedded in the app; its private
+ResetPls uses Sparkle. The public EdDSA key is embedded in the app; its private
 counterpart stays in the login Keychain under the account
 `com.carlosrebato.aiusage` and must never be committed.
 
@@ -116,8 +116,14 @@ after that can update automatically.
 
 ## Automating signed releases
 
-After a manual release works end to end, add a workflow protected by a GitHub
-environment. It must create a temporary Keychain, import the certificate and
-profiles, sign the app and widget, submit with `notarytool`, and delete the
-temporary Keychain. Signing credentials must never be exposed to pull-request
-workflows.
+Signed releases currently run manually on the maintainer's Mac. The Developer
+ID private key, Apple notarization credential and Sparkle private key stay in
+the local Keychain and are not copied to GitHub.
+
+The repository has an empty GitHub environment named `release`. It is limited
+to protected branches, requires approval from `carlosrebato`, and does not
+allow administrator bypass. If signed releases are automated later, the
+workflow must use this environment, create a temporary Keychain, import the
+certificate and profiles, sign the app and widget, submit with `notarytool`,
+and delete the temporary Keychain. Signing credentials must never be exposed
+to pull-request workflows.
