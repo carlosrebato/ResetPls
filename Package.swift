@@ -11,8 +11,12 @@ let package = Package(
     products: [
         .library(name: "AIUsageCore", targets: ["AIUsageCore"]),
         .library(name: "AIUsageDesignSystem", targets: ["AIUsageDesignSystem"]),
+        .library(name: "AIUsageProviderServices", targets: ["AIUsageProviderServices"]),
         .library(name: "AIUsageMacServices", targets: ["AIUsageMacServices"]),
         .executable(name: "AIUsageMac", targets: ["AIUsageMac"])
+    ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.2")
     ],
     targets: [
         .target(
@@ -26,21 +30,37 @@ let package = Package(
             resources: [.process("Resources")]
         ),
         .target(
-            name: "AIUsageMacServices",
+            name: "AIUsageProviderServices",
             dependencies: ["AIUsageCore"],
+            path: "Sources/AIUsageProviderServices"
+        ),
+        .target(
+            name: "AIUsageMacServices",
+            dependencies: ["AIUsageCore", "AIUsageProviderServices"],
             path: "Sources/AIUsageMacServices",
             linkerSettings: [.linkedLibrary("sqlite3")]
         ),
         .executableTarget(
             name: "AIUsageMac",
-            dependencies: ["AIUsageCore", "AIUsageDesignSystem", "AIUsageMacServices"],
+            dependencies: [
+                "AIUsageCore",
+                "AIUsageDesignSystem",
+                "AIUsageProviderServices",
+                "AIUsageMacServices",
+                .product(name: "Sparkle", package: "Sparkle")
+            ],
             path: "App",
             exclude: ["Assets.xcassets"]
         ),
         .testTarget(
             name: "AIUsageMacTests",
-            dependencies: ["AIUsageCore", "AIUsageMacServices"],
+            dependencies: ["AIUsageCore", "AIUsageProviderServices", "AIUsageMacServices"],
             path: "Tests/AIUsageMacTests"
+        ),
+        .testTarget(
+            name: "AIUsageProviderServicesTests",
+            dependencies: ["AIUsageCore", "AIUsageProviderServices"],
+            path: "Tests/AIUsageProviderServicesTests"
         )
     ]
 )

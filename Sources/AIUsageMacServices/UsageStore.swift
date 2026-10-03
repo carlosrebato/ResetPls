@@ -1,4 +1,5 @@
 import AIUsageCore
+import AIUsageProviderServices
 import Foundation
 import WidgetKit
 
@@ -20,8 +21,8 @@ public final class UsageStore: ObservableObject {
     public convenience init() {
         self.init(
             now: .now,
-            codexConnector: CodexAppServerConnector(),
-            claudeConnector: ClaudeOAuthConnector(),
+            codexConnector: Self.codexConnector(),
+            claudeConnector: Self.claudeConnector(),
             cache: UsageSnapshotCache(),
             historyCache: UsageHistoryCache(),
             metricsReader: LocalUsageMetricsReader()
@@ -30,8 +31,8 @@ public final class UsageStore: ObservableObject {
 
     init(
         now: Date = .now,
-        codexConnector: any UsageConnector = CodexAppServerConnector(),
-        claudeConnector: (any UsageConnector)? = ClaudeOAuthConnector(),
+        codexConnector: any UsageConnector = UsageStore.codexConnector(),
+        claudeConnector: (any UsageConnector)? = UsageStore.claudeConnector(),
         cache: UsageSnapshotCache = UsageSnapshotCache(),
         historyCache: UsageHistoryCache = UsageHistoryCache(),
         metricsReader: any LocalUsageMetricsReading = EmptyLocalUsageMetricsReader()
@@ -120,10 +121,16 @@ public final class UsageStore: ObservableObject {
         for outcome in outcomes {
             switch outcome.value {
             case .success(let snapshot):
+                // Connector snapshots only contain quota windows. Keep the last
+                // successfully indexed local totals until a newer metrics scan
+                // replaces them; a transient bookmark/indexing failure must not
+                // erase cost and token data from the UI or the cache.
+                let snapshot = preservingWeeklyTotals(in: snapshot)
                 replace(snapshot)
                 replaceConnectionStatus(ProviderConnectionStatus(
                     id: outcome.providerID,
                     phase: .connected,
+                    dataState: Self.dataState(for: snapshot, now: refreshStartedAt),
                     message: snapshot.message ?? AppLanguage.current.text("Connected", "Conectado")
                 ))
                 consecutiveFailures[outcome.providerID] = 0
@@ -135,14 +142,15 @@ public final class UsageStore: ObservableObject {
                 receivedLiveData = receivedLiveData || snapshot.source == .live
                 snapshotsNeedingMetrics.append(snapshot)
             case .failure(let error, let message, let retryAfter):
+                let existing = snapshots.first { $0.id == outcome.providerID }
                 replaceConnectionStatus(Self.connectionStatus(
                     providerID: outcome.providerID,
                     error: error,
-                    message: message
+                    message: message,
+                    hasLastKnownValue: existing?.highestPercent != nil
                 ))
                 let failures = (consecutiveFailures[outcome.providerID] ?? 0) + 1
                 consecutiveFailures[outcome.providerID] = failures
-                let existing = snapshots.first { $0.id == outcome.providerID }
                 let fallback = existing.flatMap { snapshot -> ProviderUsageSnapshot? in
                     guard snapshot.highestPercent != nil else { return nil }
                     return ProviderUsageSnapshot(
@@ -218,6 +226,24 @@ public final class UsageStore: ObservableObject {
         } else {
             snapshots.append(snapshot)
         }
+    }
+
+    private func preservingWeeklyTotals(
+        in snapshot: ProviderUsageSnapshot
+    ) -> ProviderUsageSnapshot {
+        guard snapshot.weeklyTotals == nil,
+              let previousTotals = snapshots.first(where: { $0.id == snapshot.id })?.weeklyTotals
+        else { return snapshot }
+
+        return ProviderUsageSnapshot(
+            id: snapshot.id,
+            session: snapshot.session,
+            weekly: snapshot.weekly,
+            observedAt: snapshot.observedAt,
+            source: snapshot.source,
+            message: snapshot.message,
+            weeklyTotals: previousTotals
+        )
     }
 
     private func replaceConnectionStatus(_ status: ProviderConnectionStatus) {
@@ -316,7 +342,8 @@ public final class UsageStore: ObservableObject {
     private static func connectionStatus(
         providerID: UsageProviderID,
         error: UsageConnectorError?,
-        message: String
+        message: String,
+        hasLastKnownValue: Bool
     ) -> ProviderConnectionStatus {
         let phase: ProviderConnectionPhase
         switch error {
@@ -330,7 +357,32 @@ public final class UsageStore: ObservableObject {
              .serverError, .missingUsageWindows, .none:
             phase = .retrying
         }
-        return ProviderConnectionStatus(id: providerID, phase: phase, message: message)
+        let dataState: ProviderDataState
+        if case .notAuthenticated = error {
+            dataState = .reauthRequired
+        } else if hasLastKnownValue {
+            dataState = .stale
+        } else {
+            dataState = .temporarilyUnavailable
+        }
+        return ProviderConnectionStatus(
+            id: providerID,
+            phase: phase,
+            dataState: dataState,
+            message: message
+        )
+    }
+
+    private static func dataState(
+        for snapshot: ProviderUsageSnapshot,
+        now: Date
+    ) -> ProviderDataState {
+        switch snapshot.source {
+        case .live, .mock: .live
+        case .cached where snapshot.isStale(at: now): .stale
+        case .cached: .cached
+        case .unavailable: .temporarilyUnavailable
+        }
     }
 
     private static func cachedSnapshot(_ snapshot: ProviderUsageSnapshot) -> ProviderUsageSnapshot {
@@ -364,6 +416,20 @@ public final class UsageStore: ObservableObject {
         let components = duration.components
         return TimeInterval(components.seconds)
             + TimeInterval(components.attoseconds) / 1_000_000_000_000_000_000
+    }
+
+    private static func claudeConnector() -> any UsageConnector {
+        ResilientUsageConnector(
+            direct: DirectUsageConnector(adapter: ClaudeDirectAdapter()),
+            localFallback: ClaudeStatusLineFallback()
+        )
+    }
+
+    private static func codexConnector() -> any UsageConnector {
+        ResilientUsageConnector(
+            direct: DirectUsageConnector(adapter: CodexDirectAdapter()),
+            localFallback: CodexAppServerFallback()
+        )
     }
 }
 

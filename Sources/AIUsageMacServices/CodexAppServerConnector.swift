@@ -1,7 +1,9 @@
 import AIUsageCore
 import Foundation
 
-struct CodexAppServerConnector: UsageConnector {
+/// Documented local fallback. Codex owns and refreshes its credentials; AI Usage
+/// exchanges only JSON-RPC messages with the subprocess and never reads auth.json.
+struct CodexAppServerFallback: UsageConnector {
     let providerID = UsageProviderID.codex
     let timeout: Duration
     private let executableURL: URL?
@@ -11,15 +13,13 @@ struct CodexAppServerConnector: UsageConnector {
         self.timeout = timeout
     }
 
-    func fetchSnapshot(allowInteraction: Bool) async throws -> ProviderUsageSnapshot {
+    func fetchSnapshot(allowInteraction _: Bool) async throws -> ProviderUsageSnapshot {
         guard let executableURL else { throw UsageConnectorError.executableNotFound }
-
         let response = try await CodexAppServerExchange(
             executableURL: executableURL,
             timeout: timeout
         ).readRateLimits()
-
-        return try CodexRateLimitsNormalizer.snapshot(from: response, observedAt: .now)
+        return try CodexAppServerRateLimitsNormalizer.snapshot(from: response, observedAt: .now)
     }
 }
 
@@ -28,18 +28,15 @@ enum CodexExecutableLocator {
         if let configured = environment["AI_USAGE_CODEX_PATH"], isExecutable(configured) {
             return URL(fileURLWithPath: configured)
         }
-
         let pathCandidates = (environment["PATH"] ?? "")
             .split(separator: ":")
             .map { String($0) + "/codex" }
-
         let candidates = [
             "/Applications/ChatGPT.app/Contents/Resources/codex",
             "/Applications/Codex.app/Contents/Resources/codex",
             "/opt/homebrew/bin/codex",
             "/usr/local/bin/codex"
         ] + pathCandidates
-
         return candidates.first(where: isExecutable).map(URL.init(fileURLWithPath:))
     }
 
@@ -75,14 +72,11 @@ private final class CodexAppServerExchange: @unchecked Sendable {
                     return
                 }
                 start()
-
                 Task { [weak self, timeout] in
                     do {
                         try await Task.sleep(for: timeout)
                         self?.complete(.failure(UsageConnectorError.timedOut))
-                    } catch {
-                        // The exchange completed or its parent task was cancelled.
-                    }
+                    } catch { }
                 }
             }
         } onCancel: {
@@ -95,53 +89,45 @@ private final class CodexAppServerExchange: @unchecked Sendable {
         let input = Pipe()
         let output = Pipe()
         let errors = Pipe()
-
         process.executableURL = executableURL
         process.arguments = ["app-server", "--stdio"]
         process.standardInput = input
         process.standardOutput = output
         process.standardError = errors
         process.environment = ProcessInfo.processInfo.environment
-
         output.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
             self?.ingest(data, input: input.fileHandleForWriting)
         }
-
         process.terminationHandler = { [weak self] process in
             guard let self else { return }
             if process.terminationStatus == 0 {
                 let remaining = output.fileHandleForReading.readDataToEndOfFile()
-                if !remaining.isEmpty {
-                    self.ingest(remaining, input: input.fileHandleForWriting)
-                }
+                if !remaining.isEmpty { self.ingest(remaining, input: input.fileHandleForWriting) }
                 if !self.isFinished {
                     self.complete(.failure(UsageConnectorError.malformedResponse))
                 }
-                return
+            } else {
+                let errorData = errors.fileHandleForReading.readDataToEndOfFile()
+                let reason = String(data: errorData, encoding: .utf8)?
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                self.complete(.failure(UsageConnectorError.launchFailed(
+                    reason ?? "code \(process.terminationStatus)"
+                )))
             }
-            let errorData = errors.fileHandleForReading.readDataToEndOfFile()
-            let reason = String(data: errorData, encoding: .utf8)?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            self.complete(.failure(UsageConnectorError.launchFailed(reason ?? "código \(process.terminationStatus)")))
         }
-
         do {
             lock.withLock { self.process = process }
             try process.run()
-
-            try write(
-                [
-                    "id": "1",
-                    "method": "initialize",
-                    "params": [
-                        "clientInfo": ["name": "ai-usage-mac", "version": "0.1.0"],
-                        "capabilities": ["experimentalApi": true]
-                    ]
-                ],
-                to: input.fileHandleForWriting
-            )
+            try write([
+                "id": "1",
+                "method": "initialize",
+                "params": [
+                    "clientInfo": ["name": "ai-usage-mac", "version": "0.1.0"],
+                    "capabilities": ["experimentalApi": true]
+                ]
+            ], to: input.fileHandleForWriting)
         } catch {
             complete(.failure(UsageConnectorError.launchFailed(error.localizedDescription)))
         }
@@ -163,31 +149,24 @@ private final class CodexAppServerExchange: @unchecked Sendable {
             }
             return completeLines
         }
-
         for line in lines where !line.isEmpty {
-            guard
-                let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
-                let id = object["id"].map({ String(describing: $0) })
+            guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any],
+                  let id = object["id"].map({ String(describing: $0) })
             else { continue }
-
             if id == "1" {
                 if let error = object["error"] as? [String: Any] {
-                    let message = error["message"] as? String ?? "Codex no pudo inicializarse"
-                    complete(.failure(UsageConnectorError.serverError(message)))
+                    complete(.failure(UsageConnectorError.serverError(
+                        error["message"] as? String ?? "Codex could not initialize"
+                    )))
                     return
                 }
                 do {
-                    try write(
-                        ["id": "2", "method": "account/rateLimits/read"],
-                        to: input
-                    )
+                    try write(["id": "2", "method": "account/rateLimits/read"], to: input)
                 } catch {
                     complete(.failure(UsageConnectorError.launchFailed(error.localizedDescription)))
-                    return
                 }
                 continue
             }
-
             guard id == "2" else { continue }
             complete(.success(line))
             return
@@ -203,7 +182,6 @@ private final class CodexAppServerExchange: @unchecked Sendable {
             process = nil
             return values
         }
-
         guard let continuation = values.0 else { return }
         if let output = values.1?.standardOutput as? Pipe {
             output.fileHandleForReading.readabilityHandler = nil
@@ -212,12 +190,10 @@ private final class CodexAppServerExchange: @unchecked Sendable {
         continuation.resume(with: result)
     }
 
-    private var isFinished: Bool {
-        lock.withLock { finished }
-    }
+    private var isFinished: Bool { lock.withLock { finished } }
 }
 
-enum CodexRateLimitsNormalizer {
+enum CodexAppServerRateLimitsNormalizer {
     static func snapshot(from data: Data, observedAt: Date) throws -> ProviderUsageSnapshot {
         let response: RPCResponse
         do {
@@ -225,41 +201,26 @@ enum CodexRateLimitsNormalizer {
         } catch {
             throw UsageConnectorError.malformedResponse
         }
-
-        if let error = response.error {
-            throw UsageConnectorError.serverError(error.message)
-        }
-
+        if let error = response.error { throw UsageConnectorError.serverError(error.message) }
         guard let limits = response.result?.rateLimits else {
             throw UsageConnectorError.missingUsageWindows
         }
-
         let windows = [limits.primary, limits.secondary].compactMap { $0 }
         let weekly = windows.first { ($0.windowDurationMins ?? 0) >= 7 * 24 * 60 }
-        let session: RateLimitWindow?
-
-        if weekly != nil {
-            session = windows.first { $0 != weekly }
-        } else {
-            session = limits.primary
-        }
-
-        let fallbackWeekly = weekly ?? (limits.primary == session ? limits.secondary : limits.primary)
+        let session = weekly == nil ? limits.primary : windows.first { $0 != weekly }
+        let fallbackWeekly = weekly
+            ?? (limits.primary == session ? limits.secondary : limits.primary)
         guard session?.usedPercent != nil || fallbackWeekly?.usedPercent != nil else {
             throw UsageConnectorError.missingUsageWindows
         }
-
-        let plan = limits.planType?.capitalized
         return ProviderUsageSnapshot(
             id: .codex,
             session: usageWindow(session),
             weekly: usageWindow(fallbackWeekly),
             observedAt: observedAt,
             source: .live,
-            message: plan.map { "Plan \($0)" } ?? AppLanguage.current.text(
-                "Connected locally",
-                "Conectado localmente"
-            )
+            message: limits.planType.map { "Plan \($0.capitalized) · Codex app-server" }
+                ?? "Codex app-server"
         )
     }
 
@@ -275,21 +236,13 @@ private struct RPCResponse: Decodable {
     let result: RPCResult?
     let error: RPCError?
 }
-
-private struct RPCResult: Decodable {
-    let rateLimits: RateLimits?
-}
-
-private struct RPCError: Decodable {
-    let message: String
-}
-
+private struct RPCResult: Decodable { let rateLimits: RateLimits? }
+private struct RPCError: Decodable { let message: String }
 private struct RateLimits: Decodable {
     let primary: RateLimitWindow?
     let secondary: RateLimitWindow?
     let planType: String?
 }
-
 private struct RateLimitWindow: Decodable, Equatable {
     let usedPercent: Double?
     let windowDurationMins: Double?

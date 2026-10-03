@@ -26,6 +26,14 @@ public enum UsageSource: String, Codable, Sendable {
     case unavailable
 }
 
+public enum ProviderDataState: String, Codable, Equatable, Sendable {
+    case live
+    case cached
+    case stale
+    case reauthRequired
+    case temporarilyUnavailable
+}
+
 public struct UsageFreshness: Equatable, Sendable {
     public enum Kind: Equatable, Sendable {
         case live
