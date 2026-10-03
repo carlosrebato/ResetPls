@@ -21,6 +21,20 @@
                ReferencedContainer = "container:AIUsage.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "YES"
+            buildForProfiling = "YES"
+            buildForArchiving = "YES"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "D612EC5D93C662FB96F4BB4E"
+               BuildableName = "AIUsageIOSWidgets.appex"
+               BlueprintName = "AIUsageIOSWidgets"
+               ReferencedContainer = "container:AIUsage.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction
@@ -39,6 +53,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "BD4A50903FBCCC726CA62DE6"
+               BuildableName = "AIUsageIOSTests.xctest"
+               BlueprintName = "AIUsageIOSTests"
+               ReferencedContainer = "container:AIUsage.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>

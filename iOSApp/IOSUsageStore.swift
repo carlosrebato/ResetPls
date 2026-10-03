@@ -1,27 +1,48 @@
 import AIUsageCore
 import AIUsageProviderServices
 import Foundation
+import WidgetKit
 
 @MainActor
 final class IOSUsageStore: ObservableObject {
     @Published private(set) var snapshots: [ProviderUsageSnapshot] = []
     @Published private(set) var states: [UsageProviderID: ProviderDataState] = [
-        .claude: .reauthRequired,
-        .codex: .reauthRequired
+        .claude: .setupRequired,
+        .codex: .setupRequired
     ]
     @Published private(set) var messages: [UsageProviderID: String] = [:]
+    @Published private(set) var history: UsageHistory
     @Published private(set) var isRefreshing = false
+    @Published private(set) var authenticatingProviders: Set<UsageProviderID> = []
     @Published var isDemoMode = ProcessInfo.processInfo.arguments.contains("--app-review-demo")
 
     private let adapters: [UsageProviderID: any DirectUsageAdapter]
+    private let cache: LastKnownCache
+    private let historyCache: UsageHistoryCache
+    private let statusCache: ProviderStatusCache
     private var lastRefresh: Date?
 
     init(
         claude: any DirectUsageAdapter = ClaudeDirectAdapter(),
-        codex: any DirectUsageAdapter = CodexDirectAdapter()
+        codex: any DirectUsageAdapter = CodexDirectAdapter(),
+        cache: LastKnownCache? = nil,
+        historyCache: UsageHistoryCache? = nil,
+        statusCache: ProviderStatusCache? = nil
     ) {
         adapters = [.claude: claude, .codex: codex]
-        if isDemoMode { applyDemo() }
+        let resolvedCache = cache ?? LastKnownCache()
+        self.cache = resolvedCache
+        self.historyCache = historyCache ?? UsageHistoryCache()
+        self.statusCache = statusCache ?? ProviderStatusCache(
+            fileURL: resolvedCache.fileURL.deletingLastPathComponent()
+                .appendingPathComponent("provider-status.json")
+        )
+        history = self.historyCache.load()
+        if isDemoMode {
+            applyDemo()
+        } else {
+            restoreCachedSnapshots()
+        }
     }
 
     func refresh(force: Bool = false) async {
@@ -55,33 +76,63 @@ final class IOSUsageStore: ObservableObject {
         for outcome in outcomes {
             switch outcome.result {
             case .success(let snapshot):
-                replace(snapshot)
+                replace(snapshot.recordingPace(previous: snapshots.first { $0.id == snapshot.id }))
+                ProviderVisibilityPreferences.setVisible(true, for: outcome.provider)
                 states[outcome.provider] = .live
                 messages[outcome.provider] = snapshot.message
             case .failure(let error):
-                let directError = error as? DirectUsageError
-                let oauthError = error as? ProviderOAuthError
-                if directError?.requiresReauthentication == true
-                    || oauthError == .reauthenticationRequired
-                    || oauthError == .missingRefreshToken {
-                    states[outcome.provider] = .reauthRequired
-                } else if snapshots.contains(where: { $0.id == outcome.provider }) {
-                    states[outcome.provider] = .stale
-                } else {
-                    states[outcome.provider] = .temporarilyUnavailable
+                let saved = snapshots.first(where: { $0.id == outcome.provider })
+                states[outcome.provider] = Self.dataState(for: error, hasLastKnownValue: saved != nil)
+                if let saved {
+                    replace(ProviderUsageSnapshot(
+                        id: saved.id, session: saved.session, weekly: saved.weekly,
+                        observedAt: saved.observedAt, source: .cached, message: saved.message,
+                        weeklyTotals: saved.weeklyTotals, paceHistory: saved.paceHistory
+                    ))
                 }
                 messages[outcome.provider] = error.localizedDescription
             }
         }
+        try? cache.save(snapshots)
+        history = (try? historyCache.recording(snapshots, at: .now)) ?? history
+        persistProviderStates()
     }
 
     func signIn(_ provider: UsageProviderID) async {
-        do {
+        await signIn(provider) {
             try await ProviderWebAuthentication.shared.signIn(provider)
-            messages[provider] = nil
+        }
+    }
+
+    func signIn(
+        _ provider: UsageProviderID,
+        authenticate: @escaping @MainActor () async throws -> Void
+    ) async {
+        let previousSnapshot = snapshots.first { $0.id == provider }
+        let previousState = states[provider] ?? .setupRequired
+        let previousMessage = messages[provider]
+        authenticatingProviders.insert(provider)
+        snapshots.removeAll { $0.id == provider }
+        messages[provider] = nil
+        try? cache.save(snapshots)
+        persistProviderStates()
+        defer { authenticatingProviders.remove(provider) }
+
+        do {
+            try await authenticate()
             await refresh(force: true)
         } catch {
+            if ProviderWebAuthentication.isCancellation(error) {
+                if let previousSnapshot { replace(previousSnapshot) }
+                states[provider] = previousState
+                messages[provider] = previousMessage
+                try? cache.save(snapshots)
+                persistProviderStates()
+                return
+            }
+            states[provider] = previousState == .setupRequired ? .setupRequired : .reauthRequired
             messages[provider] = error.localizedDescription
+            persistProviderStates()
         }
     }
 
@@ -89,8 +140,11 @@ final class IOSUsageStore: ObservableObject {
         do {
             try await ProviderAccounts.shared.signOut(provider)
             snapshots.removeAll { $0.id == provider }
-            states[provider] = .reauthRequired
+            ProviderVisibilityPreferences.setVisible(false, for: provider)
+            states[provider] = .setupRequired
             messages[provider] = nil
+            try? cache.save(snapshots)
+            persistProviderStates()
         } catch {
             messages[provider] = error.localizedDescription
         }
@@ -102,7 +156,7 @@ final class IOSUsageStore: ObservableObject {
             applyDemo()
         } else {
             snapshots = []
-            states = [.claude: .reauthRequired, .codex: .reauthRequired]
+            states = [.claude: .setupRequired, .codex: .setupRequired]
             messages = [:]
         }
     }
@@ -114,6 +168,55 @@ final class IOSUsageStore: ObservableObject {
             snapshots.append(snapshot)
             snapshots.sort { $0.id.rawValue < $1.id.rawValue }
         }
+    }
+
+    private static func dataState(
+        for error: Error,
+        hasLastKnownValue: Bool
+    ) -> ProviderDataState {
+        if let directError = error as? DirectUsageError {
+            switch directError {
+            case .notAuthenticated:
+                return hasLastKnownValue ? .reauthRequired : .setupRequired
+            case .accountIdentifierMissing, .rejected(status: 401), .rejected(status: 403):
+                return .reauthRequired
+            default:
+                return hasLastKnownValue ? .stale : .temporarilyUnavailable
+            }
+        }
+        if let oauthError = error as? ProviderOAuthError,
+           oauthError == .reauthenticationRequired || oauthError == .missingRefreshToken {
+            return .reauthRequired
+        }
+        return hasLastKnownValue ? .stale : .temporarilyUnavailable
+    }
+
+    private func restoreCachedSnapshots() {
+        snapshots = cache.load().values
+            .map { snapshot in
+                ProviderUsageSnapshot(
+                    id: snapshot.id,
+                    session: snapshot.session,
+                    weekly: snapshot.weekly,
+                    observedAt: snapshot.observedAt,
+                    source: .cached,
+                    message: snapshot.message,
+                    weeklyTotals: snapshot.weeklyTotals,
+                    paceHistory: snapshot.paceHistory
+                )
+            }
+            .sorted { $0.id.rawValue < $1.id.rawValue }
+
+        for snapshot in snapshots {
+            ProviderVisibilityPreferences.setVisible(true, for: snapshot.id)
+            states[snapshot.id] = .cached
+            messages[snapshot.id] = snapshot.message
+        }
+    }
+
+    private func persistProviderStates() {
+        try? statusCache.save(states)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     private func applyDemo() {
@@ -138,6 +241,24 @@ final class IOSUsageStore: ObservableObject {
         ]
         states = [.claude: .live, .codex: .live]
         messages = [:]
+        history = Self.demoHistory(relativeTo: now)
+    }
+
+    private static func demoHistory(relativeTo now: Date) -> UsageHistory {
+        let calendar = Calendar.current
+        let claude = [22.0, 31, 19, 46, 38, 51, 43]
+        let codex = [35.0, 28, 44, 32, 57, 49, 64]
+        let days = (-6...0).compactMap { offset -> UsageHistoryDay? in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: now) else { return nil }
+            let index = offset + 6
+            return UsageHistoryDay(
+                date: calendar.startOfDay(for: date),
+                claudePercent: claude[index],
+                codexPercent: codex[index],
+                activity: true
+            )
+        }
+        return UsageHistory(days: days)
     }
 }
 

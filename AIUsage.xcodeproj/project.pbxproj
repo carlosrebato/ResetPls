@@ -7,14 +7,19 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		04EC114A3836943B757C6425 /* IOSWidgetPreviewGallery.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53233494284243616896D95E /* IOSWidgetPreviewGallery.swift */; };
 		0D0B45AFFCE4AC31B62D0DCA /* IOSDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2201D7BDE0F7C7BF8C4AAC2E /* IOSDashboardView.swift */; };
 		0F196387F3DE33EB7CA4E7A0 /* AIUsageWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = B074A93DB7C6710897C43BA9 /* AIUsageWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		0F547E5ADDC4A38CE5DEB4AF /* AIUsageProviderServices in Frameworks */ = {isa = PBXBuildFile; productRef = 7D9F6056DF439CE911B40A96 /* AIUsageProviderServices */; };
 		12F73AF21BF9F35F7D11F96F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F17790B1FDFFFA95070A3874 /* Assets.xcassets */; };
+		1AA23467A68830627AC6E742 /* AIUsageIOSWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 13BA399D17CE550A885B0370 /* AIUsageIOSWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		1CE25234CE59B34D7F81C72A /* AIUsageMacServices in Frameworks */ = {isa = PBXBuildFile; productRef = 9956EE383533FBF8AA2BD530 /* AIUsageMacServices */; };
-		1FF880B15321B8F3396319CF /* ClaudeBrowserLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A8C5B96141520571B022EA1 /* ClaudeBrowserLogin.swift */; };
+		267DC3A73433E3071DA5A5DF /* AIUsageWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 896ACE1407350F5EE0D5B228 /* AIUsageWidgets.swift */; };
 		281D50D5EACCC018530B9D2A /* AIUsageDesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = BB666BF595BB331E7C6D4E89 /* AIUsageDesignSystem */; };
+		2B4E3A1586D6E6975EB0E3D1 /* AIUsageCore in Frameworks */ = {isa = PBXBuildFile; productRef = 9F4AA8F91AE539DA79B169AE /* AIUsageCore */; };
+		31EBBA3FF33D995918FA33F4 /* IOSUsageStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 897ECCF7BB5EAF3C86904B3F /* IOSUsageStoreTests.swift */; };
 		367BC0C450F64CF223164BE0 /* IOSUsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1ABAE43F38C7971DA461886B /* IOSUsageStore.swift */; };
+		3ED411F22D15967C1C97CE9F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F17790B1FDFFFA95070A3874 /* Assets.xcassets */; };
 		4784C1B9DAAE01C66139AAC0 /* AIUsageMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97662764C540C87CA535A972 /* AIUsageMacApp.swift */; };
 		4D15F626E0B5B2FED14108ED /* FloatingPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EF66BFFCA242CE4776551F2 /* FloatingPanelView.swift */; };
 		51120F7DAA3F1159180EF9DE /* AIUsageDesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = 7E08062852C441777264C92B /* AIUsageDesignSystem */; };
@@ -32,17 +37,33 @@
 		A5F0EC474D33A2481EF64CEE /* AIUsageCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1CC39A105434D411E1B3D4AA /* AIUsageCore */; };
 		B4E36E5543601BA79A58A24E /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBEB9DBCAD3BB4D03259BD97 /* MenuBarView.swift */; };
 		C51AABB15C27D0E4D3ACC15D /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA2A443BF3B5552C6D5E824 /* OnboardingView.swift */; };
+		D9FBA7BA6327E5397AE22D4A /* AIUsageDesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = 8AD8F1C4541EFE2DE1DEA26F /* AIUsageDesignSystem */; };
 		E4A25972516BFE561065BA82 /* AIUsageIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 682E2BB9E803FB0662BAA680 /* AIUsageIOSApp.swift */; };
 		EFB4D7CBC5D68457948A079D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26BC9C6C2BB3A2D8E8AD2508 /* SettingsView.swift */; };
+		EFE51029B4D44455573FCACF /* IOSSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A999A4C7A2104EEE2BA59ABC /* IOSSettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		83E067EB2BC5DF8C4C4F2676 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FC31984D16480DB472562C9B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D612EC5D93C662FB96F4BB4E;
+			remoteInfo = AIUsageIOSWidgets;
+		};
 		A62A20247226E2205372D47C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = FC31984D16480DB472562C9B /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 7A029C525EB8B9A542A7087E;
 			remoteInfo = AIUsageWidgets;
+		};
+		F49121B2BD3709039A039B4D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = FC31984D16480DB472562C9B /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 004D5CFD6483A4073C7BF968;
+			remoteInfo = AIUsageIOS;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -58,24 +79,39 @@
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		EB246EF4E53CA9EC7D9F8577 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				1AA23467A68830627AC6E742 /* AIUsageIOSWidgets.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		04BBC7E8EA18221FEE74D8C5 /* ConnectionSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSetupView.swift; sourceTree = "<group>"; };
+		13BA399D17CE550A885B0370 /* AIUsageIOSWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AIUsageIOSWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1ABAE43F38C7971DA461886B /* IOSUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSUsageStore.swift; sourceTree = "<group>"; };
+		1C8E73CBECC1B07771CF6BA4 /* AIUsageIOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AIUsageIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		2201D7BDE0F7C7BF8C4AAC2E /* IOSDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSDashboardView.swift; sourceTree = "<group>"; };
 		26BC9C6C2BB3A2D8E8AD2508 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		3C596C0928838DD236DB3D49 /* AIUsageMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIUsageMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		467D89BE150B861D10E8C014 /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
 		4B1175E44064FA3670635D17 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
+		53233494284243616896D95E /* IOSWidgetPreviewGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSWidgetPreviewGallery.swift; sourceTree = "<group>"; };
 		682E2BB9E803FB0662BAA680 /* AIUsageIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsageIOSApp.swift; sourceTree = "<group>"; };
 		6E807D698482110899B3D06D /* ClaudeDesktopAccessPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeDesktopAccessPicker.swift; sourceTree = "<group>"; };
-		7A8C5B96141520571B022EA1 /* ClaudeBrowserLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeBrowserLogin.swift; sourceTree = "<group>"; };
 		80F3A97FAFB482A477083468 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		896ACE1407350F5EE0D5B228 /* AIUsageWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsageWidgets.swift; sourceTree = "<group>"; };
+		897ECCF7BB5EAF3C86904B3F /* IOSUsageStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSUsageStoreTests.swift; sourceTree = "<group>"; };
 		8EF66BFFCA242CE4776551F2 /* FloatingPanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingPanelView.swift; sourceTree = "<group>"; };
 		97662764C540C87CA535A972 /* AIUsageMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsageMacApp.swift; sourceTree = "<group>"; };
 		9BA2A443BF3B5552C6D5E824 /* OnboardingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingView.swift; sourceTree = "<group>"; };
+		A999A4C7A2104EEE2BA59ABC /* IOSSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSSettingsView.swift; sourceTree = "<group>"; };
 		B074A93DB7C6710897C43BA9 /* AIUsageWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AIUsageWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		CBEB9DBCAD3BB4D03259BD97 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		DB562CA2D1EE582B8E28475E /* AIUsageIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AIUsageIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -84,6 +120,15 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		6478C28190C8094851760777 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2B4E3A1586D6E6975EB0E3D1 /* AIUsageCore in Frameworks */,
+				D9FBA7BA6327E5397AE22D4A /* AIUsageDesignSystem in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		64C6371595F93D9025D72722 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -123,6 +168,7 @@
 			children = (
 				A9FA2B59CCABD9EE4380E95A /* App */,
 				DEBBC315008175BA9CA47545 /* iOSApp */,
+				2F21E0CA0BB2DE8A6B7BB5C8 /* iOSAppTests */,
 				65C9F6C49F90B59D7DAD9264 /* Packages */,
 				2738FC3E8C48F3B1A9354735 /* Widgets */,
 				D1EA4B205244318972602FEE /* Products */,
@@ -135,6 +181,14 @@
 				896ACE1407350F5EE0D5B228 /* AIUsageWidgets.swift */,
 			);
 			path = Widgets;
+			sourceTree = "<group>";
+		};
+		2F21E0CA0BB2DE8A6B7BB5C8 /* iOSAppTests */ = {
+			isa = PBXGroup;
+			children = (
+				897ECCF7BB5EAF3C86904B3F /* IOSUsageStoreTests.swift */,
+			);
+			path = iOSAppTests;
 			sourceTree = "<group>";
 		};
 		65C9F6C49F90B59D7DAD9264 /* Packages */ = {
@@ -152,7 +206,6 @@
 				467D89BE150B861D10E8C014 /* AppPreferences.swift */,
 				4B1175E44064FA3670635D17 /* AppUpdater.swift */,
 				F17790B1FDFFFA95070A3874 /* Assets.xcassets */,
-				7A8C5B96141520571B022EA1 /* ClaudeBrowserLogin.swift */,
 				6E807D698482110899B3D06D /* ClaudeDesktopAccessPicker.swift */,
 				04BBC7E8EA18221FEE74D8C5 /* ConnectionSetupView.swift */,
 				80F3A97FAFB482A477083468 /* DashboardView.swift */,
@@ -168,6 +221,8 @@
 			isa = PBXGroup;
 			children = (
 				DB562CA2D1EE582B8E28475E /* AIUsageIOS.app */,
+				1C8E73CBECC1B07771CF6BA4 /* AIUsageIOSTests.xctest */,
+				13BA399D17CE550A885B0370 /* AIUsageIOSWidgets.appex */,
 				3C596C0928838DD236DB3D49 /* AIUsageMac.app */,
 				B074A93DB7C6710897C43BA9 /* AIUsageWidgets.appex */,
 			);
@@ -179,7 +234,9 @@
 			children = (
 				682E2BB9E803FB0662BAA680 /* AIUsageIOSApp.swift */,
 				2201D7BDE0F7C7BF8C4AAC2E /* IOSDashboardView.swift */,
+				A999A4C7A2104EEE2BA59ABC /* IOSSettingsView.swift */,
 				1ABAE43F38C7971DA461886B /* IOSUsageStore.swift */,
+				53233494284243616896D95E /* IOSWidgetPreviewGallery.swift */,
 			);
 			path = iOSApp;
 			sourceTree = "<group>";
@@ -192,11 +249,14 @@
 			buildConfigurationList = E3425EE21DDB742C3A59E9B7 /* Build configuration list for PBXNativeTarget "AIUsageIOS" */;
 			buildPhases = (
 				1A0363BBF63A3A6037104F43 /* Sources */,
+				A6519351206CD9469558227B /* Resources */,
 				64C6371595F93D9025D72722 /* Frameworks */,
+				EB246EF4E53CA9EC7D9F8577 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				02F8EFAF4754085FE8F55FBA /* PBXTargetDependency */,
 			);
 			name = AIUsageIOS;
 			packageProductDependencies = (
@@ -226,6 +286,44 @@
 			);
 			productName = AIUsageWidgets;
 			productReference = B074A93DB7C6710897C43BA9 /* AIUsageWidgets.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		BD4A50903FBCCC726CA62DE6 /* AIUsageIOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 164E0AFDE8E0EFF174DA78F1 /* Build configuration list for PBXNativeTarget "AIUsageIOSTests" */;
+			buildPhases = (
+				FCE009DFE0638E8E21D82093 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0FCDCF409F193F2A2B57A614 /* PBXTargetDependency */,
+			);
+			name = AIUsageIOSTests;
+			packageProductDependencies = (
+			);
+			productName = AIUsageIOSTests;
+			productReference = 1C8E73CBECC1B07771CF6BA4 /* AIUsageIOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		D612EC5D93C662FB96F4BB4E /* AIUsageIOSWidgets */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8F75844007E99E4C56DC4A1F /* Build configuration list for PBXNativeTarget "AIUsageIOSWidgets" */;
+			buildPhases = (
+				5C664C88116CD687354AD6DE /* Sources */,
+				6478C28190C8094851760777 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AIUsageIOSWidgets;
+			packageProductDependencies = (
+				9F4AA8F91AE539DA79B169AE /* AIUsageCore */,
+				8AD8F1C4541EFE2DE1DEA26F /* AIUsageDesignSystem */,
+			);
+			productName = AIUsageIOSWidgets;
+			productReference = 13BA399D17CE550A885B0370 /* AIUsageIOSWidgets.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 		E4AC3E315FB2C2BBBC586CD2 /* AIUsageMac */ = {
@@ -264,9 +362,18 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					004D5CFD6483A4073C7BF968 = {
+						DevelopmentTeam = 467CC6L4BF;
 						ProvisioningStyle = Automatic;
 					};
 					7A029C525EB8B9A542A7087E = {
+						ProvisioningStyle = Automatic;
+					};
+					BD4A50903FBCCC726CA62DE6 = {
+						DevelopmentTeam = 467CC6L4BF;
+						ProvisioningStyle = Automatic;
+					};
+					D612EC5D93C662FB96F4BB4E = {
+						DevelopmentTeam = 467CC6L4BF;
 						ProvisioningStyle = Automatic;
 					};
 					E4AC3E315FB2C2BBBC586CD2 = {
@@ -295,6 +402,8 @@
 				E4AC3E315FB2C2BBBC586CD2 /* AIUsageMac */,
 				7A029C525EB8B9A542A7087E /* AIUsageWidgets */,
 				004D5CFD6483A4073C7BF968 /* AIUsageIOS */,
+				D612EC5D93C662FB96F4BB4E /* AIUsageIOSWidgets */,
+				BD4A50903FBCCC726CA62DE6 /* AIUsageIOSTests */,
 			);
 		};
 /* End PBXProject section */
@@ -308,6 +417,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A6519351206CD9469558227B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3ED411F22D15967C1C97CE9F /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -317,7 +434,17 @@
 			files = (
 				E4A25972516BFE561065BA82 /* AIUsageIOSApp.swift in Sources */,
 				0D0B45AFFCE4AC31B62D0DCA /* IOSDashboardView.swift in Sources */,
+				EFE51029B4D44455573FCACF /* IOSSettingsView.swift in Sources */,
 				367BC0C450F64CF223164BE0 /* IOSUsageStore.swift in Sources */,
+				04EC114A3836943B757C6425 /* IOSWidgetPreviewGallery.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		5C664C88116CD687354AD6DE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				267DC3A73433E3071DA5A5DF /* AIUsageWidgets.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -336,7 +463,6 @@
 				4784C1B9DAAE01C66139AAC0 /* AIUsageMacApp.swift in Sources */,
 				99CA125DCD0C9140B327A1BE /* AppPreferences.swift in Sources */,
 				81F5BC73112C530038382899 /* AppUpdater.swift in Sources */,
-				1FF880B15321B8F3396319CF /* ClaudeBrowserLogin.swift in Sources */,
 				9CCB09B60326A086B1C9AF36 /* ClaudeDesktopAccessPicker.swift in Sources */,
 				7AFCA9588C8495F6F4D923A6 /* ConnectionSetupView.swift in Sources */,
 				83FECE383B57238B0947C875 /* DashboardView.swift in Sources */,
@@ -347,9 +473,27 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FCE009DFE0638E8E21D82093 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				31EBBA3FF33D995918FA33F4 /* IOSUsageStoreTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		02F8EFAF4754085FE8F55FBA /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D612EC5D93C662FB96F4BB4E /* AIUsageIOSWidgets */;
+			targetProxy = 83E067EB2BC5DF8C4C4F2676 /* PBXContainerItemProxy */;
+		};
+		0FCDCF409F193F2A2B57A614 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 004D5CFD6483A4073C7BF968 /* AIUsageIOS */;
+			targetProxy = F49121B2BD3709039A039B4D /* PBXContainerItemProxy */;
+		};
 		6944BB559E16F5CBC7B72972 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 7A029C525EB8B9A542A7087E /* AIUsageWidgets */;
@@ -365,21 +509,67 @@
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 467CC6L4BF;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_AIUsageAppGroup = "$(AI_USAGE_APP_GROUP)";
 				INFOPLIST_KEY_AIUsageRemoteConfigPublicKey = "$(AI_USAGE_REMOTE_CONFIG_PUBLIC_KEY)";
 				INFOPLIST_KEY_AIUsageRemoteConfigURL = "$(AI_USAGE_REMOTE_CONFIG_URL)";
-				INFOPLIST_KEY_CFBundleDisplayName = "AI Usage";
+				INFOPLIST_KEY_CFBundleDisplayName = ResetPls;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_IOS_BUNDLE_ID)";
-				PRODUCT_NAME = "AI Usage";
+				PRODUCT_MODULE_NAME = AIUsageIOS;
+				PRODUCT_NAME = ResetPls;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		26AA77CB816604A17B32BE3A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOSWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 467CC6L4BF;
+				INFOPLIST_FILE = "Configurations/AIUsageIOSWidgets-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_IOS_WIDGET_BUNDLE_ID)";
+				PRODUCT_NAME = "ResetPls Widgets";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		3AD7C9C079DE51CC26FBFFDB /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 467CC6L4BF;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_IOS_BUNDLE_ID).tests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ResetPls.app/ResetPls";
 			};
 			name = Debug;
 		};
@@ -390,18 +580,24 @@
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 467CC6L4BF;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_AIUsageAppGroup = "$(AI_USAGE_APP_GROUP)";
 				INFOPLIST_KEY_AIUsageRemoteConfigPublicKey = "$(AI_USAGE_REMOTE_CONFIG_PUBLIC_KEY)";
 				INFOPLIST_KEY_AIUsageRemoteConfigURL = "$(AI_USAGE_REMOTE_CONFIG_URL)";
-				INFOPLIST_KEY_CFBundleDisplayName = "AI Usage";
+				INFOPLIST_KEY_CFBundleDisplayName = ResetPls;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_IOS_BUNDLE_ID)";
-				PRODUCT_NAME = "AI Usage";
+				PRODUCT_MODULE_NAME = AIUsageIOS;
+				PRODUCT_NAME = ResetPls;
 				SDKROOT = iphoneos;
 				SUPPORTS_MACCATALYST = NO;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -412,8 +608,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				AI_USAGE_APP_BUNDLE_ID = com.example.aiusage;
-				AI_USAGE_APP_GROUP = group.com.example.aiusage;
-				AI_USAGE_IOS_BUNDLE_ID = com.example.aiusage.ios;
+				AI_USAGE_APP_GROUP = group.com.carlosrebato.aiusage;
+				AI_USAGE_IOS_BUNDLE_ID = crbg.resetpls;
+				AI_USAGE_IOS_WIDGET_BUNDLE_ID = "$(AI_USAGE_IOS_BUNDLE_ID).widgets";
 				AI_USAGE_REMOTE_CONFIG_PUBLIC_KEY = "";
 				AI_USAGE_REMOTE_CONFIG_URL = "";
 				AI_USAGE_WIDGET_BUNDLE_ID = "$(AI_USAGE_APP_BUNDLE_ID).widgets";
@@ -448,7 +645,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 22;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -462,13 +659,32 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.1.3;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		5A7F5FF2F9FCB738FAF922D3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 467CC6L4BF;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_IOS_BUNDLE_ID).tests";
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/ResetPls.app/ResetPls";
 			};
 			name = Release;
 		};
@@ -488,7 +704,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_WIDGET_BUNDLE_ID)";
-				PRODUCT_NAME = "AI Usage Widgets";
+				PRODUCT_NAME = "ResetPls Widgets";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 			};
@@ -510,7 +726,7 @@
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_APP_BUNDLE_ID)";
-				PRODUCT_NAME = "AI Usage";
+				PRODUCT_NAME = ResetPls;
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -531,8 +747,29 @@
 					"@executable_path/../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_APP_BUNDLE_ID)";
-				PRODUCT_NAME = "AI Usage";
+				PRODUCT_NAME = ResetPls;
 				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		BE66E14EE78A6925FB2D4ECF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOSWidgets.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = 467CC6L4BF;
+				INFOPLIST_FILE = "Configurations/AIUsageIOSWidgets-Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_IOS_WIDGET_BUNDLE_ID)";
+				PRODUCT_NAME = "ResetPls Widgets";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
 			};
 			name = Release;
 		};
@@ -552,7 +789,7 @@
 					"@executable_path/../../../../Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_WIDGET_BUNDLE_ID)";
-				PRODUCT_NAME = "AI Usage Widgets";
+				PRODUCT_NAME = "ResetPls Widgets";
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 			};
@@ -562,8 +799,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				AI_USAGE_APP_BUNDLE_ID = com.example.aiusage;
-				AI_USAGE_APP_GROUP = group.com.example.aiusage;
-				AI_USAGE_IOS_BUNDLE_ID = com.example.aiusage.ios;
+				AI_USAGE_APP_GROUP = group.com.carlosrebato.aiusage;
+				AI_USAGE_IOS_BUNDLE_ID = crbg.resetpls;
+				AI_USAGE_IOS_WIDGET_BUNDLE_ID = "$(AI_USAGE_IOS_BUNDLE_ID).widgets";
 				AI_USAGE_REMOTE_CONFIG_PUBLIC_KEY = "";
 				AI_USAGE_REMOTE_CONFIG_URL = "";
 				AI_USAGE_WIDGET_BUNDLE_ID = "$(AI_USAGE_APP_BUNDLE_ID).widgets";
@@ -598,7 +836,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 5;
+				CURRENT_PROJECT_VERSION = 22;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -618,7 +856,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MACOSX_DEPLOYMENT_TARGET = 15.0;
-				MARKETING_VERSION = 0.1.1;
+				MARKETING_VERSION = 0.1.3;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
@@ -632,11 +870,29 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		164E0AFDE8E0EFF174DA78F1 /* Build configuration list for PBXNativeTarget "AIUsageIOSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3AD7C9C079DE51CC26FBFFDB /* Debug */,
+				5A7F5FF2F9FCB738FAF922D3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		675A56653B4760E375E29321 /* Build configuration list for PBXProject "AIUsage" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				EDBEAA0B908976FCC70C3006 /* Debug */,
 				5A134270719DB49A1178E8D3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		8F75844007E99E4C56DC4A1F /* Build configuration list for PBXNativeTarget "AIUsageIOSWidgets" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				26AA77CB816604A17B32BE3A /* Debug */,
+				BE66E14EE78A6925FB2D4ECF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
@@ -718,9 +974,17 @@
 			isa = XCSwiftPackageProductDependency;
 			productName = AIUsageDesignSystem;
 		};
+		8AD8F1C4541EFE2DE1DEA26F /* AIUsageDesignSystem */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AIUsageDesignSystem;
+		};
 		9956EE383533FBF8AA2BD530 /* AIUsageMacServices */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = AIUsageMacServices;
+		};
+		9F4AA8F91AE539DA79B169AE /* AIUsageCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AIUsageCore;
 		};
 		A600D0EA9DD127D415E97E15 /* AIUsageProviderServices */ = {
 			isa = XCSwiftPackageProductDependency;
