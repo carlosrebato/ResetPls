@@ -9,10 +9,14 @@ public enum UsageTheme {
     public static let secondaryText = Color(red: 194 / 255, green: 196 / 255, blue: 202 / 255)
     public static let weeklyText = Color(red: 199 / 255, green: 200 / 255, blue: 205 / 255)
     public static let metaText = Color(red: 154 / 255, green: 156 / 255, blue: 162 / 255)
-    public static let tertiaryText = Color(red: 124 / 255, green: 126 / 255, blue: 134 / 255)
-    public static let mutedText = Color(red: 93 / 255, green: 95 / 255, blue: 102 / 255)
+    // Both remain above WCAG AA's 4.5:1 threshold on the lightest dark surface.
+    public static let tertiaryText = Color(red: 144 / 255, green: 146 / 255, blue: 154 / 255)
+    public static let mutedText = Color(red: 134 / 255, green: 136 / 255, blue: 144 / 255)
     public static let green = Color(red: 62 / 255, green: 207 / 255, blue: 142 / 255)
     public static let amber = Color(red: 245 / 255, green: 196 / 255, blue: 81 / 255)
+    /// Saved or temporarily stale data. Kept distinct from `amber`, which is
+    /// reserved for quota-consumption warnings.
+    public static let cached = Color(red: 255 / 255, green: 137 / 255, blue: 61 / 255)
     public static let red = Color(red: 222 / 255, green: 76 / 255, blue: 74 / 255)
     public static let mock = Color(red: 138 / 255, green: 124 / 255, blue: 255 / 255)
     public static let claude = amber
@@ -39,11 +43,32 @@ public enum UsageTheme {
         }
     }
 
+    /// Numeric values stay neutral; warnings belong to Pace and availability copy.
+    public static func quotaText(_ window: UsageWindow, secondary: Bool = false) -> Color {
+        guard window.usedPercent != nil else { return mutedText }
+        if window.isExhausted { return primaryText }
+        return secondary ? weeklyText : primaryText
+    }
+
+    public static func availabilityText(_ snapshot: ProviderUsageSnapshot) -> Color {
+        snapshot.availability == .available ? metaText : red
+    }
+
     public static func severity(_ severity: UsageSeverity) -> Color {
         switch severity {
         case .normal: green
         case .warning: amber
         case .critical, .unavailable: red
+        }
+    }
+
+    public static func signal(_ signal: ProviderSignal) -> Color {
+        switch signal {
+        case .normal: green
+        case .warning: amber
+        case .critical: red
+        case .cached: cached
+        case .unavailable: mutedText
         }
     }
 }

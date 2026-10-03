@@ -30,12 +30,13 @@ public struct ProviderCard: View {
 
             HStack(spacing: 7) {
                 Image(systemName: "arrow.clockwise")
-                Text(resetSummary)
+                Text(resetSummary).foregroundStyle(UsageTheme.availabilityText(snapshot))
                 Spacer()
                 Text(freshness)
             }
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(UsageTheme.mutedText)
+            UsagePaceLine(snapshot: snapshot, now: now, language: language)
         }
         .padding(24)
         .frame(maxWidth: .infinity, minHeight: 262, alignment: .topLeading)
@@ -65,23 +66,25 @@ public struct ProviderCard: View {
             Spacer()
 
             if snapshot.source == .mock || snapshot.source == .cached {
-                Text(snapshot.source == .mock ? "DEMO" : language.text("CACHED", "CACHÉ"))
+                Text(snapshot.source == .mock
+                    ? "DEMO"
+                    : snapshot.observedAt.formatted(date: .omitted, time: .shortened))
                     .font(.system(size: 9, weight: .bold))
                     .tracking(1.1)
-                    .foregroundStyle(snapshot.source == .mock ? UsageTheme.mock : UsageTheme.amber)
+                    .foregroundStyle(snapshot.source == .mock ? UsageTheme.mock : UsageTheme.cached)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 4)
-                    .background((snapshot.source == .mock ? UsageTheme.mock : UsageTheme.amber).opacity(0.09), in: RoundedRectangle(cornerRadius: 6))
+                    .background((snapshot.source == .mock ? UsageTheme.mock : UsageTheme.cached).opacity(0.09), in: RoundedRectangle(cornerRadius: 6))
                     .overlay {
                         RoundedRectangle(cornerRadius: 6)
-                            .stroke((snapshot.source == .mock ? UsageTheme.mock : UsageTheme.amber).opacity(0.25), lineWidth: 1)
+                            .stroke((snapshot.source == .mock ? UsageTheme.mock : UsageTheme.cached).opacity(0.25), lineWidth: 1)
                     }
             }
 
             Circle()
-                .fill(UsageTheme.severity(snapshot.severity))
+                .fill(UsageTheme.signal(snapshot.signal(at: now)))
                 .frame(width: 8, height: 8)
-                .shadow(color: UsageTheme.severity(snapshot.severity).opacity(0.65), radius: 5)
+                .shadow(color: UsageTheme.signal(snapshot.signal(at: now)).opacity(0.65), radius: 5)
         }
     }
 
@@ -91,7 +94,7 @@ public struct ProviderCard: View {
                 Text(percentText(window.usedPercent))
                     .font(.system(size: prominent ? 46 : 28, weight: .bold, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(UsageTheme.primaryText)
+                    .foregroundStyle(UsageTheme.quotaText(window, secondary: !prominent))
                 if window.usedPercent != nil {
                     Text("%")
                         .font(.system(size: prominent ? 18 : 13, weight: .semibold))
@@ -115,6 +118,9 @@ public struct ProviderCard: View {
     }
 
     private var resetSummary: String {
+        if case .blocked = snapshot.availability {
+            return language.resetText(for: snapshot, now: now)
+        }
         let reset: Date
         let label: String
         if let sessionReset = snapshot.session.resetsAt {

@@ -1,16 +1,23 @@
 import AIUsageCore
 import AIUsageDesignSystem
 import AIUsageMacServices
+import AIUsageProviderServices
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import WidgetKit
 
 struct SettingsView: View {
+    static func preferredWindowHeight(for screen: NSScreen?) -> CGFloat {
+        min(760, max(380, (screen?.visibleFrame.height ?? 800) - 64))
+    }
+
     private struct ProviderPresentation {
         let detail: String
         let badge: String
-        let color: Color
+        let color: Color?
         let isConnected: Bool
+        let isBusy: Bool
     }
 
     @EnvironmentObject private var store: UsageStore
@@ -18,20 +25,30 @@ struct SettingsView: View {
     @EnvironmentObject private var providerSelection: ProviderSelectionStore
     @Environment(\.openWindow) private var openWindow
     @AppStorage(AppPreferenceKey.automaticRefresh) private var automaticRefresh = true
+    @AppStorage(AppPreferenceKey.receiveBetaUpdates) private var receiveBetaUpdates = false
     @AppStorage(AppPreferenceKey.showPercentageInMenuBar) private var showPercentage = true
     @AppStorage(AppPreferenceKey.showResetTimesInMenuBar) private var showResetTimes = false
     @AppStorage(AppPreferenceKey.language) private var language: AppLanguage = .english
     @StateObject private var launchAtLogin = LaunchAtLoginController()
-    @State private var isAddingClaudeTokenHistory = false
-    @State private var claudeTokenHistoryError: String?
+    @State private var tokenHistoryProvider: UsageProviderID?
+    @State private var tokenHistoryErrors: [UsageProviderID: String] = [:]
+    @State private var diagnosticExportError: String?
+    @State private var diagnosticExportDocument: DiagnosticExportDocument?
+    @State private var isExportingDiagnostics = false
+    private let windowHeight: CGFloat
+
+    init(windowHeight: CGFloat? = nil) {
+        self.windowHeight = windowHeight ?? Self.preferredWindowHeight(for: NSScreen.main)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             titleBar
 
-            VStack(alignment: .leading, spacing: 24) {
-                header
-                assistantsSection
+            ScrollView(.vertical) {
+                VStack(alignment: .leading, spacing: 24) {
+                    header
+                    assistantsSection
 
                 settingsSection(language.text("General", "General")) {
                     preferenceRow(
@@ -65,7 +82,7 @@ struct SettingsView: View {
                         systemName: "timer",
                         title: language.text(
                             "Reset times in the menu bar",
-                            "Tiempos de reinicio en la barra de menú"
+                            "Tiempos de reseteo en la barra de menú"
                         ),
                         subtitle: language.text(
                             "Shows the countdown next to each percentage",
@@ -80,15 +97,21 @@ struct SettingsView: View {
                     languageRow
                 }
 
-                launchSection
-                privacyCallout
-                footer
+                    launchSection
+                    privacyCallout
+                    supportActions
+                }
+                .padding(.top, 26)
+                .padding(.horizontal, 28)
+                .padding(.bottom, 20)
             }
-            .padding(.top, 26)
+            .scrollIndicators(.visible)
+
+            footer
             .padding(.horizontal, 28)
             .padding(.bottom, 22)
         }
-        .frame(width: 560)
+        .frame(width: 560, height: windowHeight)
         .background(SettingsPalette.backgroundGradient)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
@@ -96,7 +119,18 @@ struct SettingsView: View {
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         }
         .ignoresSafeArea(.container, edges: .top)
-        .background(SettingsWindowConfigurator(title: "AI Usage · Settings"))
+        .background(SettingsWindowConfigurator(title: "ResetPls · Settings"))
+        .fileExporter(
+            isPresented: $isExportingDiagnostics,
+            document: diagnosticExportDocument,
+            contentType: .json,
+            defaultFilename: "ResetPls-Diagnostics"
+        ) { result in
+            if case .failure(let error) = result {
+                diagnosticExportError = error.localizedDescription
+            }
+            diagnosticExportDocument = nil
+        }
         .preferredColorScheme(.dark)
         .environment(\.locale, language.locale)
         .onAppear {
@@ -107,7 +141,7 @@ struct SettingsView: View {
 
     private var titleBar: some View {
         ZStack {
-            Text("AI USAGE · SETTINGS")
+            Text("RESETPLS · SETTINGS")
                 .font(.system(size: 12, weight: .bold))
                 .tracking(1.92)
                 .foregroundStyle(SettingsPalette.secondary)
@@ -136,7 +170,7 @@ struct SettingsView: View {
                 }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("AI Usage")
+                Text("ResetPls")
                     .font(.system(size: 19, weight: .bold))
                     .tracking(-0.38)
                     .foregroundStyle(SettingsPalette.hero)
@@ -186,10 +220,12 @@ struct SettingsView: View {
 
                 Spacer()
 
-                Circle()
-                    .fill(presentation.color)
-                    .frame(width: 7, height: 7)
-                    .shadow(color: presentation.color.opacity(0.55), radius: 5)
+                if let color = presentation.color {
+                    Circle()
+                        .fill(color)
+                        .frame(width: 7, height: 7)
+                        .shadow(color: color.opacity(0.55), radius: 5)
+                }
             }
 
             VStack(alignment: .leading, spacing: 3) {
@@ -203,8 +239,37 @@ struct SettingsView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
 
-                if needsClaudeTokenAccess(provider) {
-                    if isAddingClaudeTokenHistory {
+                if presentation.isConnected && !providerSelection.isActive(provider) {
+                    Button(language.text(
+                        "Hidden from the menu bar · Show",
+                        "Oculto de la barra de menú · Mostrar"
+                    )) {
+                        providerSelection.setActive(true, for: provider)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(UsageTheme.cached)
+                }
+
+                if !presentation.isConnected {
+                    HStack(spacing: 5) {
+                        if presentation.isBusy {
+                            ProgressView()
+                                .controlSize(.small)
+                                .tint(SettingsPalette.accent)
+                        } else {
+                            Text(providerActionTitle(provider))
+                            Image(systemName: "arrow.up.right")
+                                .font(.system(size: 8.5, weight: .bold))
+                        }
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(SettingsPalette.accent)
+                    .padding(.top, 4)
+                }
+
+                if presentation.isConnected && needsTokenHistoryAccess(provider) {
+                    if tokenHistoryProvider == provider {
                         ProgressView()
                             .controlSize(.small)
                             .tint(SettingsPalette.accent)
@@ -214,17 +279,22 @@ struct SettingsView: View {
                             "Add token history",
                             "Añadir histórico de tokens"
                         )) {
-                            Task { await addClaudeTokenHistory() }
+                            Task { await addTokenHistory(for: provider) }
                         }
                         .buttonStyle(.plain)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(SettingsPalette.accent)
                         .padding(.top, 5)
+
+                        Text(tokenHistoryExplanation(for: provider))
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundStyle(SettingsPalette.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
-                if provider == .claude, let claudeTokenHistoryError {
-                    Text(claudeTokenHistoryError)
+                if let tokenHistoryError = tokenHistoryErrors[provider] {
+                    Text(tokenHistoryError)
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundStyle(UsageTheme.red)
                         .lineLimit(2)
@@ -241,26 +311,91 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         }
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .onTapGesture {
+            guard !presentation.isConnected, !presentation.isBusy else { return }
+            performProviderAction(provider)
+        }
+        .accessibilityAction(named: language.text(
+            "Manage \(provider.displayName) connection",
+            "Gestionar la conexión de \(provider.displayName)"
+        )) {
+            guard !presentation.isConnected, !presentation.isBusy else { return }
+            performProviderAction(provider)
+        }
         .accessibilityElement(children: .contain)
     }
 
-    private func needsClaudeTokenAccess(_ provider: UsageProviderID) -> Bool {
-        provider == .claude
-            && ProviderDataAccess.shared.hasStoredAccess(for: .claude)
-            && !ProviderDataAccess.shared.hasUsableAccess(for: .claudeCode)
+    private func beginProviderSignIn(_ provider: UsageProviderID) {
+        tokenHistoryErrors[provider] = nil
+        Task { @MainActor in
+            let wasConnected = store.connectionStatuses.first { $0.id == provider }?.isConnected == true
+            if await store.connect(provider), !wasConnected {
+                providerSelection.setActive(true, for: provider)
+                UserDefaults.standard.set(true, forKey: AppPreferenceKey.onboardingCompleted)
+                do {
+                    if try await ProviderDataAccessPicker.offerAccessDuringInitialConnection(for: provider) {
+                        await store.refreshWhenIdle(force: true, allowInteraction: false)
+                    }
+                } catch {
+                    tokenHistoryErrors[provider] = language.text(
+                        "Optional local history was not added: \(error.localizedDescription)",
+                        "No se añadió el histórico local opcional: \(error.localizedDescription)"
+                    )
+                }
+            }
+        }
+    }
+
+    private func performProviderAction(_ provider: UsageProviderID) {
+        let status = store.connectionStatuses.first { $0.id == provider }
+        if status?.action == .retry {
+            Task { @MainActor in
+                await store.refresh(force: true, allowInteraction: false, provider: provider)
+            }
+        } else {
+            beginProviderSignIn(provider)
+        }
+    }
+
+    private func providerActionTitle(_ provider: UsageProviderID) -> String {
+        let status = store.connectionStatuses.first { $0.id == provider }
+        if status?.action == .retry {
+            return language.text("Retry", "Reintentar")
+        }
+        if status?.dataState == .reauthRequired {
+            return language.text("Reconnect", "Reconectar")
+        }
+        return language.text("Connect", "Conectar")
+    }
+
+    private func needsTokenHistoryAccess(_ provider: UsageProviderID) -> Bool {
+        !ProviderDataAccess.shared.hasUsableAccess(for: metricsDirectory(for: provider))
+    }
+
+    private func tokenHistoryExplanation(for provider: UsageProviderID) -> String {
+        let tool = provider == .claude ? "Claude Code" : "Codex CLI"
+        return language.text(
+            "Optional · reads \(tool) files on this Mac for token history and estimated cost. Live limits work without it.",
+            "Opcional · lee los archivos de \(tool) de este Mac para el histórico de tokens y el coste estimado. Los límites funcionan sin ello."
+        )
     }
 
     @MainActor
-    private func addClaudeTokenHistory() async {
-        claudeTokenHistoryError = nil
-        isAddingClaudeTokenHistory = true
-        defer { isAddingClaudeTokenHistory = false }
+    private func addTokenHistory(for provider: UsageProviderID) async {
+        tokenHistoryErrors[provider] = nil
+        tokenHistoryProvider = provider
+        defer { tokenHistoryProvider = nil }
         do {
-            guard try await ClaudeCodeMetricsAccessPicker.requestAccess() else { return }
+            guard try await ProviderDataAccessPicker.requestAccess(for: provider) else { return }
             await store.refreshWhenIdle(force: true, allowInteraction: false)
         } catch {
-            claudeTokenHistoryError = error.localizedDescription
+            tokenHistoryErrors[provider] = error.localizedDescription
         }
+    }
+
+    private func metricsDirectory(for provider: UsageProviderID) -> ProviderDataDirectory {
+        provider == .claude ? .claudeCode : .codex
     }
 
     private var launchSection: some View {
@@ -316,8 +451,8 @@ struct SettingsView: View {
                 .padding(.top, 2)
 
             Text(language.text(
-                "Counters are processed locally with read-only access. AI Usage does not store or send the content of your conversations.",
-                "Los contadores se procesan localmente y con acceso de solo lectura. AI Usage no almacena ni envía el contenido de tus conversaciones."
+                "Counters are processed locally with read-only access. ResetPls does not store or send the content of your conversations.",
+                "Los contadores se procesan localmente y con acceso de solo lectura. ResetPls no almacena ni envía el contenido de tus conversaciones."
             ))
                 .font(.system(size: 11.5, weight: .medium))
                 .lineSpacing(5)
@@ -327,24 +462,89 @@ struct SettingsView: View {
         .padding(.horizontal, 3)
     }
 
+    private var supportActions: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 16) {
+                SettingsLinkButton(title: language.text(
+                    "Export diagnostics…", "Exportar diagnóstico…"
+                )) {
+                    exportDiagnostics()
+                }
+                SettingsLinkButton(title: language.text("Help", "Ayuda")) {
+                    openSupportURL("https://github.com/carlosrebato/ai-usage-mac#readme")
+                }
+                SettingsLinkButton(title: language.text("Privacy", "Privacidad")) {
+                    openSupportURL("https://github.com/carlosrebato/ai-usage-mac/blob/main/PRIVACY.md")
+                }
+                SettingsLinkButton(title: language.text("Report an issue", "Informar de un problema")) {
+                    openSupportURL("https://github.com/carlosrebato/ai-usage-mac/issues/new/choose")
+                }
+            }
+            if let diagnosticExportError {
+                Text(diagnosticExportError)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(UsageTheme.red)
+            }
+        }
+    }
+
+    private func exportDiagnostics() {
+        diagnosticExportError = nil
+        do {
+            let data = try store.diagnosticReportData()
+            diagnosticExportDocument = DiagnosticExportDocument(data: data)
+            isExportingDiagnostics = true
+        } catch {
+            diagnosticExportError = error.localizedDescription
+        }
+    }
+
+    private func openSupportURL(_ value: String) {
+        guard let url = URL(string: value) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
     private var footer: some View {
         HStack(spacing: 12) {
             Text(language.text(
                 "Estimated API equivalent · current reset period · USD",
-                "Equivalente API estimado · periodo de reinicio actual · USD"
+                "Equivalente API estimado · periodo de reseteo actual · USD"
             ))
             + Text("   v\(appVersion)")
 
             Spacer(minLength: 10)
 
-            SettingsLinkButton(title: language.text(
-                "Check for Updates…",
-                "Buscar actualizaciones…"
-            )) {
-                AppUpdater.shared.checkForUpdates()
+            Menu {
+                Button(language.text("Check for Updates…", "Buscar actualizaciones…")) {
+                    AppUpdater.shared.checkForUpdates()
+                }
+                Divider()
+                Button {
+                    selectUpdateChannel(beta: false)
+                } label: {
+                    if receiveBetaUpdates {
+                        Text(language.text("Stable updates", "Actualizaciones estables"))
+                    } else {
+                        Label(language.text("Stable updates", "Actualizaciones estables"), systemImage: "checkmark")
+                    }
+                }
+                Button {
+                    selectUpdateChannel(beta: true)
+                } label: {
+                    if receiveBetaUpdates {
+                        Label(language.text("Beta updates", "Actualizaciones beta"), systemImage: "checkmark")
+                    } else {
+                        Text(language.text("Beta updates", "Actualizaciones beta"))
+                    }
+                }
+            } label: {
+                Text(language.text("Updates…", "Actualizaciones…"))
             }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .tint(SettingsPalette.accent)
 
-            SettingsQuitButton(title: language.text("Quit AI Usage", "Salir de AI Usage")) {
+            SettingsQuitButton(title: language.text("Quit ResetPls", "Salir de ResetPls")) {
                 NSApplication.shared.terminate(nil)
             }
         }
@@ -356,6 +556,12 @@ struct SettingsView: View {
                 .fill(Color.white.opacity(0.05))
                 .frame(height: 1)
         }
+    }
+
+    private func selectUpdateChannel(beta: Bool) {
+        guard receiveBetaUpdates != beta else { return }
+        receiveBetaUpdates = beta
+        AppUpdater.shared.updateChannelSelection()
     }
 
     private func settingsSection<Content: View>(
@@ -473,42 +679,59 @@ struct SettingsView: View {
 
         switch status?.phase {
         case .connected:
+            let isCached = snapshot?.source == .cached
+                || status?.dataState == .cached
+                || status?.dataState == .stale
             return ProviderPresentation(
                 detail: snapshot?.message ?? status?.message ?? language.text(
                     "Local session detected",
                     "Sesión local detectada"
                 ),
-                badge: language.text("Connected", "Conectado"),
-                color: SettingsPalette.accent,
-                isConnected: true
+                badge: isCached
+                    ? language.text("Cached", "En caché")
+                    : language.text("Connected", "Conectado"),
+                color: snapshot.map { UsageTheme.signal($0.signal(at: Date())) }
+                    ?? (isCached ? UsageTheme.cached : UsageTheme.signal(.unavailable)),
+                isConnected: true,
+                isBusy: false
             )
         case .checking:
             return ProviderPresentation(
-                detail: language.text("Checking the local session…", "Comprobando la sesión local…"),
+                detail: status?.message ?? language.text(
+                    "Checking the connection…",
+                    "Comprobando la conexión…"
+                ),
                 badge: language.text("Checking", "Comprobando"),
                 color: UsageTheme.amber,
-                isConnected: false
+                isConnected: false,
+                isBusy: true
             )
-        case .actionRequired:
+        case .actionRequired(let action):
+            let isUnconfigured = action == .signIn && status?.dataState == .setupRequired
             return ProviderPresentation(
                 detail: status?.message ?? language.text("Setup required", "Necesita configuración"),
-                badge: language.text("Attention", "Atención"),
-                color: UsageTheme.amber,
-                isConnected: false
+                badge: status?.dataState == .reauthRequired
+                    ? language.text("Session expired", "Sesión caducada")
+                    : language.text("Attention", "Atención"),
+                color: isUnconfigured ? nil : UsageTheme.amber,
+                isConnected: false,
+                isBusy: false
             )
         case .retrying:
             return ProviderPresentation(
                 detail: status?.message ?? language.text("Could not connect", "No se pudo conectar"),
                 badge: language.text("Retrying", "Reintentando"),
                 color: UsageTheme.red,
-                isConnected: false
+                isConnected: false,
+                isBusy: false
             )
         case .none:
             return ProviderPresentation(
                 detail: snapshot?.message ?? language.text("No data", "Sin datos"),
                 badge: language.text("Not connected", "Sin conectar"),
-                color: SettingsPalette.faint,
-                isConnected: false
+                color: nil,
+                isConnected: false,
+                isBusy: false
             )
         }
     }
@@ -516,12 +739,9 @@ struct SettingsView: View {
     private func providerMeta(_ presentation: ProviderPresentation) -> String {
         let detail = presentation.detail.trimmingCharacters(in: .whitespacesAndNewlines)
         if presentation.isConnected {
-            let plan = detail.hasPrefix("Plan ") ? String(detail.dropFirst(5)) : detail
-            let planLabel = plan.localizedCaseInsensitiveContains("plan")
-                || plan == language.text("Connected locally", "Conectado localmente")
-                ? plan
-                : "\(plan) \(language.text("Plan", "Plan"))"
-            return "\(planLabel) · \(presentation.badge)"
+            guard detail.hasPrefix("Plan ") else { return presentation.badge }
+            let plan = String(detail.dropFirst(5))
+            return "\(plan) · \(presentation.badge)"
         }
         return detail
     }
@@ -532,7 +752,7 @@ struct SettingsView: View {
         }
         return switch launchAtLogin.status {
         case .enabled:
-            language.text("AI Usage will open automatically", "AI Usage se abrirá automáticamente")
+            language.text("ResetPls will open automatically", "ResetPls se abrirá automáticamente")
         case .requiresApproval:
             language.text("Confirm it in System Settings", "Falta confirmarlo en Ajustes del Sistema")
         case .disabled:
@@ -547,14 +767,30 @@ struct SettingsView: View {
     }
 }
 
+private struct DiagnosticExportDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+
+    let data: Data
+
+    init(data: Data) { self.data = data }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
+
 enum SettingsPalette {
     static let hero = Color(red: 246 / 255, green: 246 / 255, blue: 248 / 255)
     static let title = Color(red: 244 / 255, green: 244 / 255, blue: 246 / 255)
     static let buttonText = Color(red: 216 / 255, green: 216 / 255, blue: 220 / 255)
     static let icon = Color(red: 194 / 255, green: 196 / 255, blue: 202 / 255)
     static let glyph = Color(red: 232 / 255, green: 232 / 255, blue: 234 / 255)
-    static let secondary = Color(red: 124 / 255, green: 126 / 255, blue: 134 / 255)
-    static let faint = Color(red: 93 / 255, green: 95 / 255, blue: 102 / 255)
+    static let secondary = Color(red: 144 / 255, green: 146 / 255, blue: 154 / 255)
+    static let faint = Color(red: 134 / 255, green: 136 / 255, blue: 144 / 255)
     static let accent = Color(red: 62 / 255, green: 207 / 255, blue: 142 / 255)
 
     static let backgroundGradient = RadialGradient(

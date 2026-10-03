@@ -2,6 +2,7 @@ import AIUsageCore
 import AIUsageDesignSystem
 import AIUsageMacServices
 import AppKit
+import Combine
 import SwiftUI
 
 struct FloatingPanelView: View {
@@ -50,15 +51,27 @@ struct FloatingPanelView: View {
             .help(language.text("Attach", "Acoplar"))
             .accessibilityLabel(language.text("Attach", "Acoplar"))
         }
-        .frame(width: Self.size.width, height: Self.size.height)
+        .frame(width: Self.size.width, height: panelSize.height)
         .background(UsageTheme.panelGradient)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(UsageTheme.hairline, lineWidth: 1)
         }
-        .background(FloatingWindowConfigurator())
+        .gesture(WindowDragGesture())
+        .allowsWindowActivationEvents()
+        .background(FloatingWindowConfigurator(size: panelSize))
         .onReceive(timer) { now = $0 }
+    }
+
+    private var panelSize: NSSize {
+        let paceLines = visibleSnapshots.filter {
+            $0.weeklyRisk(at: now) != nil
+                || $0.session.usedPercent != nil
+                || language.paceText($0.session.usedPercent != nil
+                    ? $0.sessionPaceEstimate(at: now) : $0.paceEstimate(at: now)) != nil
+        }.count
+        return NSSize(width: Self.size.width, height: Self.size.height + CGFloat(paceLines) * 32)
     }
 
     private var visibleSnapshots: [ProviderUsageSnapshot] {
@@ -67,6 +80,7 @@ struct FloatingPanelView: View {
 }
 
 private struct FloatingWindowConfigurator: NSViewRepresentable {
+    let size: NSSize
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
         configureWindow(for: view)
@@ -80,9 +94,14 @@ private struct FloatingWindowConfigurator: NSViewRepresentable {
     private func configureWindow(for view: NSView) {
         DispatchQueue.main.async {
             guard let window = view.window else { return }
-            let panelSize = FloatingPanelView.size
+            let panelSize = size
 
-            window.styleMask = [.borderless]
+            let desiredStyleMask: NSWindow.StyleMask = window is NSPanel
+                ? [.borderless, .nonactivatingPanel]
+                : [.borderless]
+            if window.styleMask != desiredStyleMask {
+                window.styleMask = desiredStyleMask
+            }
             window.backgroundColor = .clear
             window.isOpaque = false
             window.hasShadow = true

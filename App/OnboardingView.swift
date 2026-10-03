@@ -2,12 +2,14 @@ import AIUsageCore
 import AIUsageDesignSystem
 import AIUsageMacServices
 import AIUsageProviderServices
+import AppKit
 import SwiftUI
 
 struct OnboardingView: View {
     private enum ProviderIndicator: Equatable {
         case none
         case connected
+        case cached
         case attention
         case error
         case information
@@ -43,6 +45,11 @@ struct OnboardingView: View {
             }
         }
         .environment(\.locale, language.locale)
+        .onAppear {
+            if isOnboarding {
+                DispatchQueue.main.async { NSApp.activate(ignoringOtherApps: true) }
+            }
+        }
         .task {
             launchAtLogin.refresh()
             await store.refresh(force: true, allowInteraction: false)
@@ -89,8 +96,8 @@ struct OnboardingView: View {
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(SettingsPalette.faint)
                     Text(language.text(
-                        "Granted access is always read-only.",
-                        "El acceso concedido es siempre de solo lectura."
+                        "ResetPls uses these connections only to read usage data.",
+                        "ResetPls usa estas conexiones solo para leer datos de uso."
                     ))
                         .font(.system(size: 11.5, weight: .medium))
                         .foregroundStyle(SettingsPalette.secondary)
@@ -108,10 +115,10 @@ struct OnboardingView: View {
                             .foregroundStyle(SettingsPalette.secondary)
                     }
                     Spacer()
-                    ManagementGhostButton(title: language.text("Not now", "Ahora no")) {
-                        finish()
+                    ManagementGhostButton(title: language.text("Set up later", "Configurar más tarde")) {
+                        dismissWindow(id: "onboarding")
                     }
-                    ManagementPrimaryButton(title: language.text("Get started", "Empezar")) {
+                    ManagementPrimaryButton(title: language.text("View my usage", "Ver mi uso")) {
                         finish()
                     }
                     .disabled(!canStart)
@@ -135,7 +142,7 @@ struct OnboardingView: View {
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         }
         .overlay(alignment: .top) {
-            Text(language.text("SET UP AI USAGE", "CONFIGURAR AI USAGE"))
+            Text(language.text("SET UP RESETPLS", "CONFIGURAR RESETPLS"))
                 .font(.system(size: 12, weight: .bold))
                 .tracking(1.92)
                 .foregroundStyle(SettingsPalette.secondary)
@@ -165,8 +172,8 @@ struct OnboardingView: View {
                     .font(.system(size: 13.5, weight: .semibold))
                     .foregroundStyle(SettingsPalette.title)
                 Text(language.text(
-                    "AI Usage will open automatically",
-                    "AI Usage se abrirá automáticamente"
+                    "ResetPls will open automatically",
+                    "ResetPls se abrirá automáticamente"
                 ))
                     .font(.system(size: 11.5, weight: .medium))
                     .foregroundStyle(SettingsPalette.secondary)
@@ -295,13 +302,11 @@ struct OnboardingView: View {
 
     private func managementProviderCard(_ provider: UsageProviderID) -> some View {
         let state = cardState(for: provider)
-        let connected = state.indicator == .connected
-        let needsClaudeTokenAccess = provider == .claude
-            && ProviderDataAccess.shared.hasStoredAccess(for: .claude)
-            && !ProviderDataAccess.shared.hasUsableAccess(for: .claudeCode)
-        let actionTitle = needsClaudeTokenAccess
-            ? language.text("Add token history", "Añadir histórico de tokens")
-            : state.actionTitle
+        let connected = store.connectionStatuses.first { $0.id == provider }?.isConnected == true
+        let needsTokenHistoryAccess = connected
+            && !ProviderDataAccess.shared.hasUsableAccess(
+                for: metricsDirectory(for: provider)
+            )
 
         return HStack(spacing: 14) {
             ProviderGlyph(provider: provider, size: 18, color: SettingsPalette.glyph)
@@ -347,14 +352,26 @@ struct OnboardingView: View {
                         }
                     }
 
-                    if let actionTitle {
-                        ManagementGhostButton(title: actionTitle) {
-                            if needsClaudeTokenAccess {
-                                Task { await connectClaudeTokenHistory() }
-                            } else {
-                                performAction(for: provider)
+                    if needsTokenHistoryAccess, let actionTitle = state.actionTitle {
+                        Menu {
+                            Button(actionTitle) { performAction(for: provider) }
+                            Button(language.text("Add local history…", "Añadir histórico local…")) {
+                                Task { await connectTokenHistory(provider) }
                             }
+                        } label: {
+                            Text(language.text("Options…", "Opciones…"))
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(SettingsPalette.buttonText)
+                                .padding(.horizontal, 15)
+                                .frame(height: 31)
+                                .background(Color.white.opacity(0.04), in: Capsule())
+                                .overlay { Capsule().stroke(Color.white.opacity(0.08), lineWidth: 1) }
                         }
+                        .menuStyle(.borderlessButton)
+                        .menuIndicator(.hidden)
+                        .fixedSize()
+                    } else if let actionTitle = state.actionTitle {
+                        ManagementGhostButton(title: actionTitle) { performAction(for: provider) }
                     }
                 }
                 .disabled(busyProvider != nil)
@@ -388,6 +405,11 @@ struct OnboardingView: View {
                 .fill(SettingsPalette.accent)
                 .frame(width: 7, height: 7)
                 .shadow(color: SettingsPalette.accent.opacity(0.55), radius: 5)
+        case .cached:
+            Circle()
+                .fill(UsageTheme.cached)
+                .frame(width: 7, height: 7)
+                .shadow(color: UsageTheme.cached.opacity(0.55), radius: 5)
         case .attention:
             Circle()
                 .fill(UsageTheme.amber)
@@ -398,7 +420,9 @@ struct OnboardingView: View {
                 .fill(UsageTheme.red)
                 .frame(width: 7, height: 7)
                 .shadow(color: UsageTheme.red.opacity(0.45), radius: 4)
-        case .none, .information:
+        case .none:
+            EmptyView()
+        case .information:
             Circle()
                 .fill(Color.white.opacity(0.25))
                 .frame(width: 7, height: 7)
@@ -417,19 +441,19 @@ struct OnboardingView: View {
 
     private var windowTitle: String {
         isOnboarding
-            ? language.text("Set up AI Usage", "Configura AI Usage")
+            ? language.text("Set up ResetPls", "Configura ResetPls")
             : language.text("Manage AI assistants", "Gestionar asistentes de IA")
     }
 
     private var headerSubtitle: String {
         isOnboarding
             ? language.text(
-                "Check your usage limits from the menu bar. AI Usage processes counters locally and does not analyze, store, or send the content of your conversations.",
-                "Consulta tus límites de uso desde la barra de menú. AI Usage procesa localmente los contadores y no analiza, almacena ni envía el contenido de tus conversaciones."
+                "Choose Claude, Codex, or both. Connect your account to see usage limits; local token history is an optional second step.",
+                "Elige Claude, Codex o ambos. Conecta tu cuenta para ver los límites de uso; el histórico local de tokens es un segundo paso opcional."
             )
             : language.text(
-                "Review or update the local connections AI Usage uses to read your usage counters.",
-                "Revisa o actualiza las conexiones locales que AI Usage usa para leer tus contadores de uso."
+                "Review or update the local connections ResetPls uses to read your usage counters.",
+                "Revisa o actualiza las conexiones locales que ResetPls usa para leer tus contadores de uso."
             )
     }
 
@@ -512,6 +536,8 @@ struct OnboardingView: View {
             EmptyView()
         case .connected:
             Image(systemName: "checkmark.circle.fill").foregroundStyle(connectedColor)
+        case .cached:
+            Image(systemName: "clock.fill").foregroundStyle(UsageTheme.cached)
         case .attention:
             Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(attentionColor)
         case .error:
@@ -524,18 +550,11 @@ struct OnboardingView: View {
     private func cardState(for provider: UsageProviderID) -> CardState {
         if busyProvider == provider {
             return CardState(
-                title: provider == .claude
-                    ? language.text("Connecting…", "Conectando…")
-                    : language.text("Checking…", "Comprobando…"),
-                subtitle: provider == .claude
-                    ? language.text(
-                        "Checking the authorized Claude data folder.",
-                        "Comprobando la carpeta de datos autorizada de Claude."
-                    )
-                    : language.text(
-                        "Checking the authorized .codex folder.",
-                        "Comprobando la carpeta .codex autorizada."
-                    ),
+                title: language.text("Checking…", "Comprobando…"),
+                subtitle: language.text(
+                    "Verifying the authorized connection and usage data.",
+                    "Verificando la conexión autorizada y los datos de uso."
+                ),
                 indicator: .busy,
                 actionTitle: nil,
                 actionIsQuiet: false
@@ -548,16 +567,52 @@ struct OnboardingView: View {
 
         switch status.phase {
         case .connected:
-            let message = store.snapshots.first(where: { $0.id == provider })?.message
+            let snapshot = store.snapshots.first(where: { $0.id == provider })
+            let message = snapshot?.message
+            let isCached = snapshot?.source == .cached
+                || status.dataState == .cached
+                || status.dataState == .stale
+            let signal = snapshot?.signal(at: Date()) ?? .normal
+            let indicator: ProviderIndicator = if isCached {
+                .cached
+            } else {
+                switch signal {
+                case .normal: .connected
+                case .warning: .attention
+                case .critical: .error
+                case .cached: .cached
+                case .unavailable: .information
+                }
+            }
+            let usesLocalSession = isLocalFallback(provider, message: message)
+            let subtitle = message ?? language.text(
+                "Local session detected",
+                "Sesión local detectada"
+            )
             return CardState(
-                title: "\(provider == .claude ? "Claude" : "Codex") \(language.text("connected", "conectado"))",
-                subtitle: message ?? language.text("Local session detected", "Sesión local detectada"),
-                indicator: .connected,
-                actionTitle: language.text("Change access", "Cambiar acceso"),
+                title: usesLocalSession
+                    ? language.text(
+                        "Using the local \(provider.displayName) session",
+                        "Usando la sesión local de \(provider.displayName)"
+                    )
+                    : "\(provider == .claude ? "Claude" : "Codex") \(language.text("connected", "conectado"))",
+                subtitle: isCached
+                    ? "\(subtitle) · \(language.text("Cached", "En caché"))"
+                    : subtitle,
+                indicator: indicator,
+                actionTitle: usesLocalSession
+                    ? language.text("Connect directly", "Conectar directamente")
+                    : language.text("Reconnect", "Reconectar"),
                 actionIsQuiet: true
             )
         case .checking:
-            return initialState(for: provider)
+            return CardState(
+                title: language.text("Connecting…", "Conectando…"),
+                subtitle: status.message,
+                indicator: .busy,
+                actionTitle: nil,
+                actionIsQuiet: false
+            )
         case .retrying:
             return CardState(
                 title: language.text("Could not connect", "No se pudo conectar"),
@@ -567,14 +622,18 @@ struct OnboardingView: View {
                 actionIsQuiet: false
             )
         case .actionRequired(let action):
-            return actionState(action, provider: provider, message: status.message)
+            return actionState(
+                action, provider: provider, message: status.message,
+                dataState: status.dataState
+            )
         }
     }
 
     private func actionState(
         _ action: ProviderSetupAction,
         provider: UsageProviderID,
-        message: String
+        message: String,
+        dataState: ProviderDataState
     ) -> CardState {
         switch action {
         case .grantPermission:
@@ -590,12 +649,15 @@ struct OnboardingView: View {
             )
         case .signIn:
             return CardState(
-                title: language.text("Sign in to continue", "Inicia sesión para continuar"),
+                title: dataState == .reauthRequired
+                    ? language.text("Session expired", "Sesión caducada")
+                    : language.text("Connect ResetPls", "Conecta ResetPls"),
                 subtitle: message,
-                indicator: .attention,
-                actionTitle: provider == .claude
-                    ? language.text("Sign in with Claude", "Iniciar sesión con Claude")
-                    : language.text("Open Codex", "Abrir Codex"),
+                indicator: dataState == .reauthRequired ? .error : .none,
+                actionTitle: language.text(
+                    "\(dataState == .reauthRequired ? "Reconnect" : "Connect") \(provider == .claude ? "Claude" : "Codex")",
+                    "\(dataState == .reauthRequired ? "Reconectar" : "Conectar") \(provider == .claude ? "Claude" : "Codex")"
+                ),
                 actionIsQuiet: false
             )
         case .install:
@@ -622,8 +684,8 @@ struct OnboardingView: View {
             title: provider == .claude ? "Claude" : "Codex",
             subtitle: provider == .claude
                 ? language.text(
-                    "Sign in securely in your browser. AI Usage never sees your password.",
-                    "Inicia sesión de forma segura en el navegador. AI Usage nunca ve tu contraseña."
+                    "Sign in securely in your browser. ResetPls never sees your password.",
+                    "Inicia sesión de forma segura en el navegador. ResetPls nunca ve tu contraseña."
                 )
                 : language.text(
                     "Sign in securely in your browser. Your Codex session stays separate.",
@@ -644,11 +706,12 @@ struct OnboardingView: View {
             return
         }
 
-        if status?.phase == .connected || status?.action == .grantPermission {
-            Task { await connect(provider) }
+        if status?.phase == .connected {
+            beginProviderSignIn(provider)
             return
         }
-        if status?.phase == .checking {
+
+        if status?.action == .grantPermission {
             Task { await connect(provider) }
             return
         }
@@ -670,17 +733,20 @@ struct OnboardingView: View {
     }
 
     private func beginProviderSignIn(_ provider: UsageProviderID) {
-        guard busyProvider == nil else { return }
-        busyProvider = provider
         accessError = nil
         Task { @MainActor in
-            defer { busyProvider = nil }
-            do {
-                try await ProviderWebAuthentication.shared.signIn(provider)
+            let wasConnected = store.connectionStatuses.first { $0.id == provider }?.isConnected == true
+            if await store.connect(provider) {
                 setProviderVisible(true, provider: provider)
-                await store.refreshWhenIdle(force: true, allowInteraction: false)
-            } catch {
-                accessError = error.localizedDescription
+                if !wasConnected {
+                    do {
+                        if try await ProviderDataAccessPicker.offerAccessDuringInitialConnection(for: provider) {
+                            await store.refreshWhenIdle(force: true, allowInteraction: false)
+                        }
+                    } catch {
+                        accessError = error.localizedDescription
+                    }
+                }
             }
         }
     }
@@ -695,20 +761,34 @@ struct OnboardingView: View {
         }
     }
 
-    private func connectClaudeTokenHistory() async {
+    private func connectTokenHistory(_ provider: UsageProviderID) async {
         accessError = nil
-        busyProvider = .claude
+        busyProvider = provider
         defer { busyProvider = nil }
         do {
-            guard try await ClaudeCodeMetricsAccessPicker.requestAccess() else { return }
+            guard try await ProviderDataAccessPicker.requestAccess(for: provider) else { return }
             await store.refreshWhenIdle(force: true, allowInteraction: false)
         } catch {
             accessError = error.localizedDescription
         }
     }
 
+    private func metricsDirectory(for provider: UsageProviderID) -> ProviderDataDirectory {
+        provider == .claude ? .claudeCode : .codex
+    }
+
     private func dataDirectory(for provider: UsageProviderID) -> ProviderDataDirectory {
         provider == .claude ? .claude : .codex
+    }
+
+    private func isLocalFallback(_ provider: UsageProviderID, message: String?) -> Bool {
+        guard let message else { return false }
+        switch provider {
+        case .claude:
+            return message.localizedCaseInsensitiveContains("statusline")
+        case .codex:
+            return message.localizedCaseInsensitiveContains("app-server")
+        }
     }
 
     private func refresh(_ provider: UsageProviderID) async {
@@ -792,7 +872,11 @@ private struct ManagementGhostButton: View {
     @State private var isHovering = false
 
     var body: some View {
-        Button(title, action: action)
+        Button(action: action) {
+            Text(title)
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
+        }
             .buttonStyle(.plain)
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(SettingsPalette.buttonText)

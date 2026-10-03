@@ -6,14 +6,13 @@ import AppKit
 import SwiftUI
 
 struct ConnectionSetupView: View {
+    @EnvironmentObject private var store: UsageStore
     let statuses: [ProviderConnectionStatus]
     let isRefreshing: Bool
     let errorMessage: String?
     let retry: () -> Void
     let grantClaudeDesktopAccess: () -> Void
     @AppStorage(AppPreferenceKey.language) private var language: AppLanguage = .english
-    @State private var isSigningIn = false
-    @State private var signInError: String?
 
     private var pending: [ProviderConnectionStatus] {
         statuses.filter { status in
@@ -28,14 +27,11 @@ struct ConnectionSetupView: View {
         if !pending.isEmpty {
             VStack(alignment: .leading, spacing: 14) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(language.text("COMPLETE SETUP", "COMPLETA LA CONEXIÓN"))
+                    Text(panelTitle)
                         .font(.system(size: 10, weight: .bold))
                         .tracking(1.4)
                         .foregroundStyle(UsageTheme.tertiaryText)
-                    Text(language.text(
-                        "AI Usage will use the sessions already available on this Mac.",
-                        "AI Usage utilizará las sesiones que ya tienes en este Mac."
-                    ))
+                    Text(panelMessage)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(UsageTheme.secondaryText)
                 }
@@ -44,7 +40,7 @@ struct ConnectionSetupView: View {
                     connectionRow(status)
                 }
 
-                if let visibleError = signInError ?? errorMessage {
+                if let visibleError = errorMessage {
                     Text(visibleError)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(UsageTheme.red)
@@ -76,7 +72,7 @@ struct ConnectionSetupView: View {
             Spacer()
 
             if let action = status.action {
-                Button(actionLabel(action, provider: status.id)) {
+                Button(actionLabel(action, status: status)) {
                     perform(action, provider: status.id)
                 }
                 .buttonStyle(.bordered)
@@ -89,11 +85,42 @@ struct ConnectionSetupView: View {
         }
     }
 
-    private func actionLabel(_ action: ProviderSetupAction, provider: UsageProviderID) -> String {
+    private var panelTitle: String {
+        pending.contains { $0.dataState == .reauthRequired }
+            ? language.text("SESSION EXPIRED", "SESIÓN CADUCADA")
+            : language.text("CONNECT A SERVICE", "CONECTA UN SERVICIO")
+    }
+
+    private var panelMessage: String {
+        let states = pending.map(\.dataState)
+        if states.contains(.reauthRequired), states.contains(.setupRequired) {
+            return language.text(
+                "Reconnect the expired session or connect another service.",
+                "Reconecta la sesión caducada o conecta otro servicio."
+            )
+        }
+        if states.contains(.reauthRequired) {
+            return language.text(
+                "Reconnect the affected service. Your other service keeps working.",
+                "Reconecta el servicio afectado. El otro seguirá funcionando."
+            )
+        }
+        return language.text(
+            "Connect one or both services to start tracking your limits.",
+            "Conecta uno o ambos servicios para empezar a seguir tus límites."
+        )
+    }
+
+    private func actionLabel(
+        _ action: ProviderSetupAction,
+        status: ProviderConnectionStatus
+    ) -> String {
         switch action {
         case .grantPermission: language.text("Grant access", "Dar acceso")
         case .signIn:
-            language.text("Sign in with \(provider.displayName)", "Iniciar sesión con \(provider.displayName)")
+            status.dataState == .reauthRequired
+                ? language.text("Reconnect \(status.id.displayName)", "Reconectar \(status.id.displayName)")
+                : language.text("Connect \(status.id.displayName)", "Conectar \(status.id.displayName)")
         case .install: language.text("Install", "Instalar")
         case .retry: language.text("Retry", "Reintentar")
         }
@@ -106,17 +133,8 @@ struct ConnectionSetupView: View {
         case .grantPermission, .retry:
             retry()
         case .signIn:
-            guard !isSigningIn else { return }
-            isSigningIn = true
-            signInError = nil
             Task { @MainActor in
-                defer { isSigningIn = false }
-                do {
-                    try await ProviderWebAuthentication.shared.signIn(provider)
-                    retry()
-                } catch {
-                    signInError = error.localizedDescription
-                }
+                _ = await store.connect(provider)
             }
         case .install:
             ProviderAppLauncher.open(provider, installationFallback: true)
