@@ -1,8 +1,9 @@
 # ResetPls — Claude Code & Codex Usage Tracker for Mac and iPhone
 
-> Private historical snapshot in NSPanel. The maintained source, current builds,
-> and releases live at [carlosrebato/ai-usage-mac](https://github.com/carlosrebato/ai-usage-mac).
-> Do not publish ResetPls from this copy.
+> This repository is the private source integration for ResetPls. Public Mac
+> releases and the Sparkle update feed remain at
+> [carlosrebato/ai-usage-mac](https://github.com/carlosrebato/ai-usage-mac)
+> until the migration in [MIGRATION.md](MIGRATION.md) is verified.
 
 [![CI](https://github.com/carlosrebato/ai-usage-mac/actions/workflows/ci.yml/badge.svg)](https://github.com/carlosrebato/ai-usage-mac/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/carlosrebato/ai-usage-mac?include_prereleases)](https://github.com/carlosrebato/ai-usage-mac/releases)
