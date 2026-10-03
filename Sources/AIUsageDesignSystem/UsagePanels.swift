@@ -849,15 +849,10 @@ struct UsagePaceLine: View {
             : snapshot.paceEstimate(at: now)
         let weeklyRisk = snapshot.weeklyRisk(at: now)
         if persistentSessionStatus && weeklyRisk == nil && snapshot.session.usedPercent != nil {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(persistentColor(estimate).opacity(0.9))
-                    .frame(width: 5, height: 5)
-                Text(persistentText(estimate))
-                    .monospacedDigit()
-            }
-                .font(.system(size: 10, weight: .medium))
+            Text(persistentText(estimate))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(persistentColor(estimate))
+                .monospacedDigit()
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(minHeight: 14, alignment: .leading)
         } else {
@@ -909,24 +904,33 @@ struct UsagePaceLine: View {
         case .onTrackToReset:
             return language.text("On track for this session", "Buen ritmo para esta sesión")
         case .insufficientData:
-            return language.text(
-                "Session pace · Not enough data yet",
-                "Ritmo de sesión · Aún no hay datos suficientes"
-            )
+            return measuringSessionText
         case nil:
             return snapshot.source == .mock
-                ? language.text(
-                    "Session pace · Not enough data yet",
-                    "Ritmo de sesión · Aún no hay datos suficientes"
-                )
+                ? measuringSessionText
                 : language.text("Session pace unavailable", "Ritmo de sesión no disponible")
         }
+    }
+
+    private var measuringSessionText: String {
+        if let reset = snapshot.session.resetsAt,
+           let duration = snapshot.session.durationSeconds,
+           (0..<900).contains(now.timeIntervalSince(reset.addingTimeInterval(-duration))) {
+            return language.text(
+                "New session · measuring pace",
+                "Sesión nueva · calculando ritmo"
+            )
+        }
+        return language.text(
+            "Measuring this session's pace",
+            "Calculando el ritmo de esta sesión"
+        )
     }
 
     private func persistentColor(_ estimate: PaceEstimate?) -> Color {
         switch estimate {
         case .limitIn: UsageTheme.amber
-        case .onTrackToReset: UsageTheme.green.opacity(0.82)
+        case .onTrackToReset: UsageTheme.mutedText
         case .insufficientData, nil: UsageTheme.mutedText
         }
     }
