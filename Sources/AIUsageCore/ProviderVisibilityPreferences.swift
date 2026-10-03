@@ -73,3 +73,32 @@ public enum ProviderVisibilityPreferences {
         return connectedProviders
     }
 }
+
+public enum ProviderOrderPreferences {
+    public static let key = "providerDisplayOrder"
+
+    public static func ordered(
+        in defaults: UserDefaults = ProviderVisibilityPreferences.store
+    ) -> [UsageProviderID] {
+        let saved = defaults.stringArray(forKey: key) ?? []
+        var result: [UsageProviderID] = []
+        for raw in saved {
+            guard let provider = UsageProviderID(rawValue: raw), !result.contains(provider) else {
+                continue
+            }
+            result.append(provider)
+        }
+        result.append(contentsOf: UsageProviderID.allCases.filter { !result.contains($0) })
+        return result
+    }
+
+    public static func setFirst(
+        _ provider: UsageProviderID,
+        in defaults: UserDefaults = ProviderVisibilityPreferences.store
+    ) {
+        defaults.set(
+            ([provider] + ordered(in: defaults).filter { $0 != provider }).map(\.rawValue),
+            forKey: key
+        )
+    }
+}

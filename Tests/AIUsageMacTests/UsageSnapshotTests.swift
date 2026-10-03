@@ -3,6 +3,18 @@ import Testing
 @testable import AIUsageCore
 
 struct UsageSnapshotTests {
+    @Test func displayOrderPersistsAndRepairsUnknownOrDuplicateValues() {
+        let suite = "ProviderOrder.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        #expect(ProviderOrderPreferences.ordered(in: defaults) == [.claude, .codex])
+        ProviderOrderPreferences.setFirst(.codex, in: defaults)
+        #expect(ProviderOrderPreferences.ordered(in: defaults) == [.codex, .claude])
+        defaults.set(["codex", "unknown", "codex"], forKey: ProviderOrderPreferences.key)
+        #expect(ProviderOrderPreferences.ordered(in: defaults) == [.codex, .claude])
+    }
+
     @Test func widgetFallsBackToCachedProvidersWhenVisibilityWasNeverInitialized() {
         let suite = "ProviderVisibility.widgetFallback.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

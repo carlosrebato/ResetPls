@@ -33,7 +33,7 @@ struct AIUsageMacApp: App {
                 .environmentObject(appDelegate.assistantSetupContext)
                 .environmentObject(appDelegate.providerSelection)
         }
-        .defaultSize(width: 520, height: 440)
+        .defaultSize(width: 520, height: 468)
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .defaultLaunchBehavior(.suppressed)
@@ -197,13 +197,13 @@ final class AIUsageAppDelegate: NSObject, NSApplicationDelegate {
 }
 
 @MainActor
-private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
+private final class NativeStatusBarController: NSObject {
     private let store: UsageStore
     private let assistantSetupContext: AssistantSetupContext
     private let providerSelection: ProviderSelectionStore
     private let statusItem: NSStatusItem
     private let statusDotsOverlay = MenuBarStatusDotsOverlay(frame: .zero)
-    private let popover = NSPopover()
+    private var statusPanel: NSPanel?
     private var cancellables = Set<AnyCancellable>()
     private var minuteTimer: AnyCancellable?
     private var wakeRecoveryTask: Task<Void, Never>?
@@ -228,7 +228,7 @@ private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
         configureStatusItem()
-        configurePopover()
+        configureStatusPanel()
         observeChanges()
         applyAutomaticRefreshPreference()
         updateStatusItem()
@@ -236,7 +236,7 @@ private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
         if CommandLine.arguments.contains("--verify-status-popover") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
                 guard let self, let button = self.statusItem.button else { return }
-                self.togglePopover(relativeTo: button)
+                self.toggleStatusPanel(relativeTo: button)
             }
         }
         if CommandLine.arguments.contains("--verify-settings") {
@@ -278,8 +278,7 @@ private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
         guard let button = statusItem.button else { return }
         button.target = self
         button.action = #selector(statusItemClicked(_:))
-        // Handle the press before a transient popover auto-closes on mouse-up.
-        // Otherwise the same click can immediately reopen it and appear ignored.
+        // Handle the press consistently with the custom status panel dismissal.
         button.sendAction(on: [.leftMouseDown, .rightMouseDown])
         button.imagePosition = .imageOnly
         button.imageScaling = .scaleProportionallyDown
@@ -288,27 +287,35 @@ private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
         button.addSubview(statusDotsOverlay)
     }
 
-    private func configurePopover() {
+    private func configureStatusPanel() {
         let darkAppearance = NSAppearance(named: .darkAqua)
-        // We own dismissal so the status-item click cannot race AppKit's
-        // transient auto-close and immediately reopen the popover.
-        popover.behavior = .applicationDefined
-        popover.delegate = self
-        popover.animates = false
-        popover.appearance = darkAppearance
-        popover.hasFullSizeContent = true
-        popover.contentSize = NSSize(width: MenuBarView.preferredWidth, height: 260)
+        let panel = AIUsageFloatingPanel(
+            contentRect: NSRect(x: 0, y: 0, width: MenuBarView.preferredWidth, height: 260),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.appearance = darkAppearance
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = true
+        panel.level = .popUpMenu
+        panel.hidesOnDeactivate = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.isReleasedWhenClosed = false
         let hostingController = NSHostingController(
             rootView: MenuBarView(
                 detach: { [weak self] in self?.showFloatingWindow() },
-                settings: { [weak self] in self?.showSettings() }
+                settings: { [weak self] in self?.showSettings() },
+                sizeDidChange: { [weak self] size in self?.resizeStatusPanel(to: size) }
             )
             .environmentObject(store)
             .environmentObject(assistantSetupContext)
             .environmentObject(providerSelection)
         )
         hostingController.view.appearance = darkAppearance
-        popover.contentViewController = hostingController
+        panel.contentViewController = hostingController
+        statusPanel = panel
     }
 
     private func observeChanges() {
@@ -334,6 +341,11 @@ private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
             .store(in: &cancellables)
 
         providerSelection.$activeProviders
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.updateStatusItem() }
+            .store(in: &cancellables)
+
+        providerSelection.$orderedProviders
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.updateStatusItem() }
             .store(in: &cancellables)
@@ -382,41 +394,53 @@ private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
         if NSApp.currentEvent?.type == .rightMouseDown {
             showContextMenu()
         } else {
-            togglePopover(relativeTo: sender)
+            toggleStatusPanel(relativeTo: sender)
         }
     }
 
-    private func togglePopover(relativeTo button: NSStatusBarButton) {
-        if popover.isShown {
-            popover.performClose(nil)
+    private func toggleStatusPanel(relativeTo button: NSStatusBarButton) {
+        guard let statusPanel else { return }
+        if statusPanel.isVisible {
+            closeStatusPanel()
         } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            constrainPopoverToVisibleScreen(relativeTo: button)
-            installPopoverDismissMonitors()
+            statusPanel.contentView?.layoutSubtreeIfNeeded()
+            let fitting = statusPanel.contentView?.fittingSize ?? .zero
+            if fitting.width > 0, fitting.height > 0 {
+                statusPanel.setContentSize(fitting)
+            }
+            positionStatusPanel(relativeTo: button)
+            statusPanel.makeKeyAndOrderFront(nil)
+            installStatusPanelDismissMonitors()
             if UserDefaults.standard.object(forKey: AppPreferenceKey.automaticRefresh) as? Bool ?? true {
                 Task { [store] in await store.refreshStaleOnPresentation() }
             }
         }
     }
 
-    private func constrainPopoverToVisibleScreen(relativeTo button: NSStatusBarButton) {
-        guard let window = popover.contentViewController?.view.window,
-              let screen = button.window?.screen ?? NSScreen.main
-        else { return }
-
-        let visibleFrame = screen.visibleFrame.insetBy(dx: 4, dy: 4)
-        var origin = window.frame.origin
-        if window.frame.maxX > visibleFrame.maxX {
-            origin.x -= window.frame.maxX - visibleFrame.maxX
+    private func resizeStatusPanel(to size: CGSize) {
+        guard let statusPanel, size.width > 0, size.height > 0,
+              abs(statusPanel.frame.width - size.width) > 1
+                || abs(statusPanel.frame.height - size.height) > 1 else { return }
+        statusPanel.setContentSize(size)
+        if statusPanel.isVisible, let button = statusItem.button {
+            positionStatusPanel(relativeTo: button)
         }
-        if origin.x < visibleFrame.minX {
-            origin.x = visibleFrame.minX
-        }
-        window.setFrameOrigin(origin)
     }
 
-    private func installPopoverDismissMonitors() {
-        removePopoverDismissMonitors()
+    private func positionStatusPanel(relativeTo button: NSStatusBarButton) {
+        guard let statusPanel, let buttonWindow = button.window,
+              let screen = buttonWindow.screen ?? NSScreen.main
+        else { return }
+        let visibleFrame = screen.visibleFrame.insetBy(dx: 4, dy: 4)
+        let buttonFrame = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        let x = min(max(buttonFrame.midX - statusPanel.frame.width / 2, visibleFrame.minX),
+                    visibleFrame.maxX - statusPanel.frame.width)
+        let y = max(buttonFrame.minY - statusPanel.frame.height - 6, visibleFrame.minY)
+        statusPanel.setFrameOrigin(NSPoint(x: x, y: y))
+    }
+
+    private func installStatusPanelDismissMonitors() {
+        removeStatusPanelDismissMonitors()
         let mask: NSEvent.EventTypeMask = [
             .leftMouseDown,
             .rightMouseDown,
@@ -424,37 +448,37 @@ private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
         ]
         localDismissMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) {
             [weak self] event in
-            guard let self, self.popover.isShown else { return event }
-            let popoverWindow = self.popover.contentViewController?.view.window
+            guard let self, self.statusPanel?.isVisible == true else { return event }
+            let panelWindow = self.statusPanel
             let statusWindow = self.statusItem.button?.window
-            guard event.window !== popoverWindow, event.window !== statusWindow else {
+            guard event.window !== panelWindow, event.window !== statusWindow else {
                 return event
             }
-            self.popover.performClose(nil)
+            self.closeStatusPanel()
             return event
         }
         globalDismissMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) {
             [weak self] _ in
             let clickLocation = NSEvent.mouseLocation
             DispatchQueue.main.async {
-                guard let self, self.popover.isShown else { return }
+                guard let self, self.statusPanel?.isVisible == true else { return }
                 if self.statusItem.button?.window?.frame.contains(clickLocation) == true {
                     return
                 }
-                self.popover.performClose(nil)
+                self.closeStatusPanel()
             }
         }
         localEscapeMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) {
             [weak self] event in
-            guard let self, self.popover.isShown, event.keyCode == 53 else {
+            guard let self, self.statusPanel?.isVisible == true, event.keyCode == 53 else {
                 return event
             }
-            self.popover.performClose(nil)
+            self.closeStatusPanel()
             return nil
         }
     }
 
-    private func removePopoverDismissMonitors() {
+    private func removeStatusPanelDismissMonitors() {
         if let localDismissMonitor {
             NSEvent.removeMonitor(localDismissMonitor)
             self.localDismissMonitor = nil
@@ -469,12 +493,13 @@ private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
         }
     }
 
-    func popoverDidClose(_ notification: Notification) {
-        removePopoverDismissMonitors()
+    private func closeStatusPanel() {
+        statusPanel?.orderOut(nil)
+        removeStatusPanelDismissMonitors()
     }
 
     private func showContextMenu() {
-        popover.performClose(nil)
+        closeStatusPanel()
         let language = AppLanguage.current
         let menu = NSMenu()
 
@@ -534,7 +559,7 @@ private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
     }
 
     private func showSettings() {
-        popover.performClose(nil)
+        closeStatusPanel()
         NSApp.activate(ignoringOtherApps: true)
 
         if let settingsWindow {
@@ -563,7 +588,7 @@ private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
     }
 
     private func showFloatingWindow() {
-        popover.performClose(nil)
+        closeStatusPanel()
         settingsWindow?.orderOut(nil)
 
         if let floatingWindow {
@@ -611,7 +636,7 @@ private final class NativeStatusBarController: NSObject, NSPopoverDelegate {
             forKey: AppPreferenceKey.showResetTimesInMenuBar
         )
         let visibleProviders = providerSelection.activeProviders
-        let snapshots = UsageProviderID.allCases
+        let snapshots = providerSelection.orderedProviders
             .filter(visibleProviders.contains)
             .compactMap { provider in
                 store.snapshots.first { $0.id == provider && $0.menuBarPercent != nil }

@@ -22,15 +22,18 @@ struct MenuBarView: View {
 
     private let detachAction: (() -> Void)?
     private let settingsAction: (() -> Void)?
+    private let sizeDidChange: ((CGSize) -> Void)?
 
     private let timer = Timer.publish(every: 30, on: .main, in: .common).autoconnect()
 
     init(
         detach: (() -> Void)? = nil,
-        settings: (() -> Void)? = nil
+        settings: (() -> Void)? = nil,
+        sizeDidChange: ((CGSize) -> Void)? = nil
     ) {
         detachAction = detach
         settingsAction = settings
+        self.sizeDidChange = sizeDidChange
     }
 
     var body: some View {
@@ -70,6 +73,20 @@ struct MenuBarView: View {
         .fixedSize(horizontal: false, vertical: true)
         .id(isExpanded ? "expanded" : "compact")
         .background(UsageTheme.panelGradient)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(UsageTheme.hairline, lineWidth: 1)
+        }
+        .background {
+            GeometryReader { geometry in
+                Color.clear.preference(key: MenuPanelSizeKey.self, value: geometry.size)
+            }
+        }
+        .onPreferenceChange(MenuPanelSizeKey.self) { size in
+            guard size.width > 0, size.height > 0 else { return }
+            sizeDidChange?(size)
+        }
         .animation(nil, value: isExpanded)
         .onReceive(timer) { now = $0 }
         .onChange(of: store.snapshots) { _, _ in now = .now }
@@ -202,5 +219,12 @@ struct MenuBarView: View {
         DispatchQueue.main.async {
             openSettings()
         }
+    }
+}
+
+private struct MenuPanelSizeKey: PreferenceKey {
+    static let defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        value = nextValue()
     }
 }

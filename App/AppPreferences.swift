@@ -16,6 +16,7 @@ final class AssistantSetupContext: ObservableObject {
 @MainActor
 final class ProviderSelectionStore: ObservableObject {
     @Published private(set) var activeProviders: Set<UsageProviderID>
+    @Published private(set) var orderedProviders: [UsageProviderID]
 
     init() {
         ProviderVisibilityPreferences.migrateIfNeeded(
@@ -28,6 +29,7 @@ final class ProviderSelectionStore: ObservableObject {
                 ProviderVisibilityPreferences.isVisible($0)
             }
         )
+        orderedProviders = ProviderOrderPreferences.ordered()
     }
 
     func isActive(_ provider: UsageProviderID) -> Bool {
@@ -58,8 +60,16 @@ final class ProviderSelectionStore: ObservableObject {
 
     var hasActiveProvider: Bool { !activeProviders.isEmpty }
 
+    func setFirst(_ provider: UsageProviderID) {
+        ProviderOrderPreferences.setFirst(provider)
+        orderedProviders = ProviderOrderPreferences.ordered()
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     func filtering(_ snapshots: [ProviderUsageSnapshot]) -> [ProviderUsageSnapshot] {
-        snapshots.filter { activeProviders.contains($0.id) }
+        orderedProviders.compactMap { provider in
+            snapshots.first { $0.id == provider && activeProviders.contains(provider) }
+        }
     }
 }
 

@@ -79,8 +79,9 @@ struct OnboardingView: View {
                 }
 
                 VStack(spacing: 10) {
-                    managementProviderCard(.claude)
-                    managementProviderCard(.codex)
+                    ForEach(providerSelection.orderedProviders, id: \.self) { provider in
+                        managementProviderCard(provider)
+                    }
                 }
 
                 if let accessError {
@@ -202,7 +203,7 @@ struct OnboardingView: View {
         VStack(spacing: 0) {
             managementTitleBar
 
-            VStack(spacing: 22) {
+            VStack(spacing: 17) {
                 VStack(spacing: 8) {
                     Text(language.text(
                         "Manage your AI assistants",
@@ -221,9 +222,48 @@ struct OnboardingView: View {
                 }
                 .padding(.horizontal, 20)
 
+                HStack(spacing: 8) {
+                    Text(language.text("DISPLAY ORDER", "ORDEN DE VISUALIZACIÓN"))
+                        .font(.system(size: 10, weight: .semibold))
+                        .tracking(1)
+                        .foregroundStyle(SettingsPalette.secondary)
+                    Spacer()
+                    Menu {
+                        ForEach(UsageProviderID.allCases, id: \.self) { provider in
+                            Button {
+                                providerSelection.setFirst(provider)
+                            } label: {
+                                if providerSelection.orderedProviders.first == provider {
+                                    Label(provider.displayName, systemImage: "checkmark")
+                                } else {
+                                    Text(provider.displayName)
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Text(language.text("First: ", "Primero: ")
+                                + (providerSelection.orderedProviders.first?.displayName ?? "Claude Code"))
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
+                        }
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(SettingsPalette.accent)
+                        .fixedSize(horizontal: true, vertical: false)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .fixedSize()
+                }
+                .accessibilityHint(language.text(
+                    "Changes the order in the menu bar and all panels",
+                    "Cambia el orden en la barra de menú y en todos los paneles"
+                ))
+
                 VStack(spacing: 10) {
-                    managementProviderCard(.claude)
-                    managementProviderCard(.codex)
+                    ForEach(providerSelection.orderedProviders, id: \.self) { provider in
+                        managementProviderCard(provider)
+                    }
                 }
 
                 if let accessError {
@@ -266,7 +306,7 @@ struct OnboardingView: View {
             .padding(.horizontal, 28)
             .padding(.bottom, 22)
         }
-        .frame(width: 520, height: 440)
+        .frame(width: 520, height: 468)
         .background(SettingsPalette.backgroundGradient)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
@@ -907,9 +947,10 @@ private struct ManagementVisibilityButton: View {
         }
         .buttonStyle(.plain)
         .font(.system(size: 11.5, weight: .semibold))
+        .fixedSize(horizontal: true, vertical: false)
         .foregroundStyle(isVisible ? SettingsPalette.accent : SettingsPalette.buttonText)
         .padding(.horizontal, 11)
-        .frame(height: 31)
+        .frame(minWidth: 77, minHeight: 31)
         .background(Color.white.opacity(isHovering ? 0.08 : 0.04), in: Capsule())
         .overlay {
             Capsule().stroke(

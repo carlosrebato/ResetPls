@@ -32,9 +32,7 @@ public struct UsageCompactMetrics: View {
     }
 
     private var ordered: [ProviderUsageSnapshot] {
-        UsageProviderID.allCases.compactMap { provider in
-            snapshots.first { $0.id == provider }
-        }
+        snapshots
     }
 
     private func compactColumn(_ snapshot: ProviderUsageSnapshot) -> some View {
@@ -153,6 +151,7 @@ public struct UsageDetailedMetrics: View {
                 now: now,
                 language: language,
                 providers: Set(ordered.map(\.id)),
+                providerOrder: ordered.map(\.id),
                 currentDayProviders: Set(
                     ordered.filter { $0.source != .unavailable && $0.highestPercent != nil }
                         .map(\.id)
@@ -163,9 +162,7 @@ public struct UsageDetailedMetrics: View {
     }
 
     private var ordered: [ProviderUsageSnapshot] {
-        UsageProviderID.allCases.compactMap { provider in
-            snapshots.first { $0.id == provider }
-        }
+        snapshots
     }
 
     private func providerBlock(_ snapshot: ProviderUsageSnapshot) -> some View {
@@ -371,6 +368,7 @@ public struct UsageTrendFooter: View {
     public let now: Date
     public let language: AppLanguage
     public let providers: Set<UsageProviderID>
+    public let providerOrder: [UsageProviderID]
     public let currentDayProviders: Set<UsageProviderID>
     public let verticalExpansion: CGFloat
     public let compact: Bool
@@ -380,6 +378,7 @@ public struct UsageTrendFooter: View {
         now: Date,
         language: AppLanguage = .english,
         providers: Set<UsageProviderID> = Set(UsageProviderID.allCases),
+        providerOrder: [UsageProviderID] = UsageProviderID.allCases,
         currentDayProviders: Set<UsageProviderID> = Set(UsageProviderID.allCases),
         verticalExpansion: CGFloat = 0,
         compact: Bool = false
@@ -388,6 +387,7 @@ public struct UsageTrendFooter: View {
         self.now = now
         self.language = language
         self.providers = providers
+        self.providerOrder = providerOrder
         self.currentDayProviders = currentDayProviders
         self.verticalExpansion = verticalExpansion
         self.compact = compact
@@ -409,11 +409,8 @@ public struct UsageTrendFooter: View {
 
                 Spacer()
 
-                if providers.contains(.claude) {
-                    legend(.claude, trend: trend)
-                }
-                if providers.contains(.codex) {
-                    legend(.codex, trend: trend)
+                ForEach(providerOrder.filter { providers.contains($0) }, id: \.self) { provider in
+                    legend(provider, trend: trend)
                 }
             }
 
@@ -834,7 +831,7 @@ public struct UsageFloatingMetrics: View {
     }
 
     private var ordered: [ProviderUsageSnapshot] {
-        UsageProviderID.allCases.compactMap { provider in snapshots.first { $0.id == provider } }
+        snapshots
     }
 
 }
