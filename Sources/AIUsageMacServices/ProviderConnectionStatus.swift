@@ -48,8 +48,29 @@ public struct ProviderConnectionStatus: Identifiable, Equatable, Sendable {
     private static func defaultState(for phase: ProviderConnectionPhase) -> ProviderDataState {
         switch phase {
         case .connected: .live
-        case .actionRequired(.signIn): .reauthRequired
+        case .actionRequired(.signIn): .setupRequired
         case .checking, .actionRequired, .retrying: .temporarilyUnavailable
         }
+    }
+}
+
+/// Snapshot and connection metadata are published as one value so observers
+/// can never render a new connection phase with an old provider snapshot (or
+/// the inverse).
+public struct ProviderRuntimeState: Identifiable, Equatable, Sendable {
+    public let id: UsageProviderID
+    public var snapshot: ProviderUsageSnapshot
+    public var connection: ProviderConnectionStatus?
+
+    init(
+        id: UsageProviderID,
+        snapshot: ProviderUsageSnapshot,
+        connection: ProviderConnectionStatus?
+    ) {
+        precondition(snapshot.id == id)
+        precondition(connection == nil || connection?.id == id)
+        self.id = id
+        self.snapshot = snapshot
+        self.connection = connection
     }
 }

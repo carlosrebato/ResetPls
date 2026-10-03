@@ -4,6 +4,7 @@ import Foundation
 import SQLite3
 
 struct IndexedUsageEvent {
+    let key: String
     let timestamp: Date
     let model: String
     let input: Int
@@ -216,13 +217,14 @@ final class LocalUsageMetricsIndex {
     func events(
         provider: UsageProviderID,
         periodStart: Date,
-        periodEnd: Date
+        periodEnd: Date,
+        deduplicating: Bool = true
     ) throws -> [IndexedUsageEvent] {
         let selection: String
-        if provider == .claude {
+        if provider == .claude && deduplicating {
             selection = """
             SELECT timestamp, model, input, cached_input, cache_write, cache_write_5m,
-                   cache_write_1h, output, reasoning, unclassified, total
+                   cache_write_1h, output, reasoning, unclassified, total, event_key
             FROM (
                 SELECT *, ROW_NUMBER() OVER (
                     PARTITION BY event_key ORDER BY total DESC, timestamp DESC
@@ -235,7 +237,7 @@ final class LocalUsageMetricsIndex {
         } else {
             selection = """
             SELECT timestamp, model, input, cached_input, cache_write, cache_write_5m,
-                   cache_write_1h, output, reasoning, unclassified, total
+                   cache_write_1h, output, reasoning, unclassified, total, event_key
             FROM events
             WHERE provider = ? AND timestamp >= ? AND timestamp < ?
             """
@@ -250,6 +252,7 @@ final class LocalUsageMetricsIndex {
         var result: [IndexedUsageEvent] = []
         while sqlite3_step(statement) == SQLITE_ROW {
             result.append(IndexedUsageEvent(
+                key: textColumn(statement, 11),
                 timestamp: Date(timeIntervalSince1970: sqlite3_column_double(statement, 0)),
                 model: textColumn(statement, 1),
                 input: integerColumn(statement, 2),

@@ -1,7 +1,7 @@
 import AIUsageCore
 import Foundation
 
-/// Documented local fallback. Codex owns and refreshes its credentials; AI Usage
+/// Documented local fallback. Codex owns and refreshes its credentials; ResetPls
 /// exchanges only JSON-RPC messages with the subprocess and never reads auth.json.
 struct CodexAppServerFallback: UsageConnector {
     let providerID = UsageProviderID.codex
@@ -206,7 +206,9 @@ enum CodexAppServerRateLimitsNormalizer {
             throw UsageConnectorError.missingUsageWindows
         }
         let windows = [limits.primary, limits.secondary].compactMap { $0 }
-        let weekly = windows.first { ($0.windowDurationMins ?? 0) >= 7 * 24 * 60 }
+        let weekly = windows.first {
+            UsageWindow.isVerifiedWeeklyDuration($0.windowDurationMins.map { $0 * 60 })
+        }
         let session = weekly == nil ? limits.primary : windows.first { $0 != weekly }
         let fallbackWeekly = weekly
             ?? (limits.primary == session ? limits.secondary : limits.primary)
@@ -227,7 +229,8 @@ enum CodexAppServerRateLimitsNormalizer {
     private static func usageWindow(_ window: RateLimitWindow?) -> UsageWindow {
         UsageWindow(
             usedPercent: window?.usedPercent.map { min(max($0, 0), 100) },
-            resetsAt: window?.resetsAt.map { Date(timeIntervalSince1970: $0) }
+            resetsAt: window?.resetsAt.map { Date(timeIntervalSince1970: $0) },
+            durationSeconds: window?.windowDurationMins.map { $0 * 60 }
         )
     }
 }

@@ -54,7 +54,7 @@ let package = Package(
         ),
         .testTarget(
             name: "AIUsageMacTests",
-            dependencies: ["AIUsageCore", "AIUsageProviderServices", "AIUsageMacServices"],
+            dependencies: ["AIUsageCore", "AIUsageProviderServices", "AIUsageMacServices", "AIUsageDesignSystem"],
             path: "Tests/AIUsageMacTests"
         ),
         .testTarget(

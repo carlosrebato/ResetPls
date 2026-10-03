@@ -60,15 +60,17 @@ struct ProviderOAuthTests {
             session: testSession()
         )
         let first = try await account.authorizationRequest(
-            redirectURI: "https://platform.claude.com/oauth/code/callback"
+            redirectURI: "http://localhost:54134/callback"
         )
         let second = try await account.authorizationRequest(
-            redirectURI: "https://platform.claude.com/oauth/code/callback"
+            redirectURI: "http://localhost:54134/callback"
         )
         let query = URLComponents(url: first.authorizationURL, resolvingAgainstBaseURL: false)?.queryItems
         #expect(first.state != second.state)
         #expect(query?.first { $0.name == "code_challenge_method" }?.value == "S256")
         #expect(query?.first { $0.name == "scope" }?.value == "user:profile")
+        #expect(query?.first { $0.name == "code" }?.value == "true")
+        #expect(query?.first { $0.name == "redirect_uri" }?.value == "http://localhost:54134/callback")
     }
 
     @Test func manipulatedCallbackIsRejectedBeforeTokenExchange() async throws {
@@ -122,6 +124,7 @@ struct ProviderOAuthTests {
     @Test func directNormalizersTolerateAdditionalWindows() throws {
         let claude = try ClaudeDirectUsageNormalizer.snapshot(
             from: Data(#"{"five_hour":{"utilization":25},"seven_day":{"utilization":40},"seven_day_opus":{"utilization":10}}"#.utf8),
+            plan: "Max 20x",
             observedAt: .now
         )
         let codex = try CodexDirectUsageNormalizer.snapshot(
@@ -129,8 +132,81 @@ struct ProviderOAuthTests {
             observedAt: .now
         )
         #expect(claude.weekly.usedPercent == 40)
+        #expect(claude.message == "Plan Max 20x")
         #expect(codex.session.usedPercent == 22)
         #expect(codex.weekly.usedPercent == 51)
+        #expect(codex.message == "Plan Plus")
+    }
+
+    @Test func claudeParsesFractionalAndNumericResetTimes() throws {
+        let snapshot = try ClaudeDirectUsageNormalizer.snapshot(
+            from: Data(#"{"five_hour":{"utilization":25,"resets_at":"2026-09-22T13:45:12.123456Z"},"seven_day":{"utilization":40,"resets_at":1790082000000}}"#.utf8),
+            observedAt: .now
+        )
+
+        #expect(snapshot.session.resetsAt != nil)
+        #expect(snapshot.weekly.resetsAt == Date(timeIntervalSince1970: 1_790_082_000))
+    }
+
+    @Test func claudeProfileRestoresConcretePlanNames() {
+        let max = ClaudeProfileNormalizer.plan(
+            from: Data(#"{"organization":{"organization_type":"claude_max","rate_limit_tier":"default_claude_max_20x"}}"#.utf8)
+        )
+        let pro = ClaudeProfileNormalizer.plan(
+            from: Data(#"{"account":{"has_claude_pro":true}}"#.utf8)
+        )
+        let team = ClaudeProfileNormalizer.plan(
+            from: Data(#"{"organization":{"organization_type":"claude_team"}}"#.utf8)
+        )
+
+        #expect(max == "Max 20x")
+        #expect(pro == "Pro")
+        #expect(team == "Team")
+    }
+
+    @Test func claudeAdapterCombinesUsageTimersAndProfilePlan() async throws {
+        let token = StoredProviderToken(
+            accessToken: "claude-token",
+            refreshToken: "refresh",
+            idToken: nil,
+            expiresAt: Date(timeIntervalSince1970: 10_000),
+            accountID: nil,
+            scopes: ["user:profile"]
+        )
+        let account = ProviderOAuthAccount(
+            configuration: .claude,
+            vault: MemoryVault(storage: MemoryVaultStorage(token)),
+            session: testSession(),
+            now: { Date(timeIntervalSince1970: 100) }
+        )
+        OAuthURLProtocol.handler = { request in
+            let response = HTTPURLResponse(
+                url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil
+            )!
+            if request.url?.path == "/profile" {
+                return (
+                    response,
+                    Data(#"{"organization":{"organization_type":"claude_max","rate_limit_tier":"default_claude_max_5x"}}"#.utf8)
+                )
+            }
+            return (
+                response,
+                Data(#"{"five_hour":{"utilization":4,"resets_at":"2026-09-22T13:45:12.123456Z"},"seven_day":{"utilization":3,"resets_at":"2026-09-29T00:00:00Z"}}"#.utf8)
+            )
+        }
+        let adapter = ClaudeDirectAdapter(
+            account: account,
+            session: testSession(),
+            endpoint: URL(string: "https://example.com/usage")!,
+            profileEndpoint: URL(string: "https://example.com/profile")!,
+            now: { Date(timeIntervalSince1970: 100) }
+        )
+
+        let snapshot = try await adapter.fetchSnapshot()
+
+        #expect(snapshot.message == "Plan Max 5x")
+        #expect(snapshot.session.resetsAt != nil)
+        #expect(snapshot.weekly.resetsAt != nil)
     }
 
     private func testSession() -> URLSession {

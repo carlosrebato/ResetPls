@@ -17,6 +17,7 @@ enum UsageConnectorError: LocalizedError, Equatable, Sendable {
     case launchFailed(String)
     case timedOut
     case notAuthenticated(String)
+    case reauthenticationRequired(String)
     case permissionRequired(String)
     case rateLimited(retryAfter: TimeInterval?)
     case malformedResponse
@@ -35,7 +36,8 @@ enum UsageConnectorError: LocalizedError, Equatable, Sendable {
             "\(language.text("Codex could not be launched", "No se pudo iniciar Codex")): \(reason)"
         case .timedOut:
             language.text("The request took too long to respond", "La consulta tardó demasiado en responder")
-        case .notAuthenticated(let message), .permissionRequired(let message):
+        case .notAuthenticated(let message), .reauthenticationRequired(let message),
+             .permissionRequired(let message):
             message
         case .rateLimited(let retryAfter):
             if let retryAfter {

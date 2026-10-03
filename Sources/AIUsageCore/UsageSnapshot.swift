@@ -30,6 +30,7 @@ public enum ProviderDataState: String, Codable, Equatable, Sendable {
     case live
     case cached
     case stale
+    case setupRequired
     case reauthRequired
     case temporarilyUnavailable
 }
@@ -38,6 +39,7 @@ public struct UsageFreshness: Equatable, Sendable {
     public enum Kind: Equatable, Sendable {
         case live
         case cached
+        case unavailable
     }
 
     public let kind: Kind
@@ -47,7 +49,12 @@ public struct UsageFreshness: Equatable, Sendable {
         let available = snapshots.filter {
             $0.highestPercent != nil && $0.source != .unavailable
         }
-        let cached = available.filter { $0.source == .cached }
+        guard !available.isEmpty else {
+            kind = .unavailable
+            date = now
+            return
+        }
+        let cached = available.filter { $0.source == .cached || $0.isStale(at: now) }
         let relevant = cached.isEmpty ? available : cached
         let observedAt = relevant.map(\.observedAt).min() ?? now
 
@@ -77,14 +84,31 @@ public enum UsageSeverity: Int, Comparable, Codable, Sendable {
 public struct UsageWindow: Equatable, Codable, Sendable {
     public let usedPercent: Double?
     public let resetsAt: Date?
+    /// Provider-reported quota duration, when known.
+    public let durationSeconds: TimeInterval?
 
-    public init(usedPercent: Double?, resetsAt: Date?) {
+    public init(usedPercent: Double?, resetsAt: Date?, durationSeconds: TimeInterval? = nil) {
         self.usedPercent = usedPercent
         self.resetsAt = resetsAt
+        self.durationSeconds = durationSeconds
+    }
+
+    public static func isVerifiedWeeklyDuration(_ duration: TimeInterval?) -> Bool {
+        guard let duration, duration.isFinite else { return false }
+        return abs(duration - 7 * 24 * 60 * 60) <= 60
+    }
+
+    public var isVerifiedWeekly: Bool {
+        Self.isVerifiedWeeklyDuration(durationSeconds)
     }
 
     public var normalizedPercent: Double {
         min(max(usedPercent ?? 0, 0), 100)
+    }
+
+    public var isExhausted: Bool {
+        guard let usedPercent, usedPercent.isFinite else { return false }
+        return usedPercent >= 100
     }
 }
 
@@ -138,6 +162,7 @@ public struct ProviderUsageSnapshot: Identifiable, Equatable, Codable, Sendable 
     public let source: UsageSource
     public let message: String?
     public let weeklyTotals: WeeklyUsageTotals?
+    public let paceHistory: UsagePaceHistory?
 
     public init(
         id: UsageProviderID,
@@ -146,7 +171,8 @@ public struct ProviderUsageSnapshot: Identifiable, Equatable, Codable, Sendable 
         observedAt: Date,
         source: UsageSource,
         message: String?,
-        weeklyTotals: WeeklyUsageTotals? = nil
+        weeklyTotals: WeeklyUsageTotals? = nil,
+        paceHistory: UsagePaceHistory? = nil
     ) {
         self.id = id
         self.session = session
@@ -155,6 +181,7 @@ public struct ProviderUsageSnapshot: Identifiable, Equatable, Codable, Sendable 
         self.source = source
         self.message = message
         self.weeklyTotals = weeklyTotals
+        self.paceHistory = paceHistory
     }
 
     public var highestPercent: Double? {
@@ -173,7 +200,12 @@ public struct ProviderUsageSnapshot: Identifiable, Equatable, Codable, Sendable 
         return UsageSeverity.forPercent(highestPercent)
     }
 
-    public func isStale(at now: Date, after interval: TimeInterval = 10 * 60) -> Bool {
-        now.timeIntervalSince(observedAt) > interval
+    public func isStale(
+        at now: Date,
+        after interval: TimeInterval = 10 * 60,
+        allowedClockSkew: TimeInterval = 60
+    ) -> Bool {
+        let age = now.timeIntervalSince(observedAt)
+        return age > interval || age < -allowedClockSkew
     }
 }

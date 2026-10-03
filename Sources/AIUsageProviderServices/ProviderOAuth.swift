@@ -4,6 +4,7 @@ import Foundation
 import Security
 
 public enum ProviderOAuthError: LocalizedError, Equatable, Sendable {
+    case authenticationInProgress
     case invalidAuthorizationResponse
     case stateMismatch
     case missingAuthorizationCode
@@ -15,6 +16,8 @@ public enum ProviderOAuthError: LocalizedError, Equatable, Sendable {
 
     public var errorDescription: String? {
         switch self {
+        case .authenticationInProgress:
+            "Another sign-in is already in progress. Finish or cancel it first."
         case .invalidAuthorizationResponse:
             "The provider returned an invalid authorization response."
         case .stateMismatch:
@@ -63,7 +66,7 @@ public enum ProviderOAuthSecurity {
         }
     }
 
-    /// Removes only the legacy AI Usage-owned Claude item. It never queries or
+    /// Removes only the legacy ResetPls-owned Claude item. It never queries or
     /// deletes Claude Code, Codex, ChatGPT or desktop-app Keychain services.
     public static func purgeLegacyAIUsageTokens() throws {
         let query: [String: Any] = [

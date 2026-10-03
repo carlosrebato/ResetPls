@@ -31,18 +31,24 @@ struct ClaudeStatuslineReader: Sendable {
             payload.sessionPercent != nil || payload.weekPercent != nil
         else { return nil }
 
+        // A statusline artifact is a current local data source, not the app's
+        // persisted last-known-value cache. The file-age guard above is what
+        // makes it safe to surface as live data.
+        let observedAt = min(parse(payload.lastUpdated) ?? modifiedAt, now)
         return ProviderUsageSnapshot(
             id: .claude,
             session: UsageWindow(
                 usedPercent: payload.sessionPercent,
-                resetsAt: parse(payload.resetAt)
+                resetsAt: parse(payload.resetAt),
+                durationSeconds: 5 * 60 * 60
             ),
             weekly: UsageWindow(
                 usedPercent: payload.weekPercent,
-                resetsAt: parse(payload.weekResetAt)
+                resetsAt: parse(payload.weekResetAt),
+                durationSeconds: 7 * 24 * 60 * 60
             ),
-            observedAt: parse(payload.lastUpdated) ?? modifiedAt,
-            source: .cached,
+            observedAt: observedAt,
+            source: .live,
             message: "Claude Code statusline"
         )
     }

@@ -33,8 +33,17 @@ struct UsageHistoryTests {
         #expect(history.days.count == 2)
         #expect(history.days[0].claudePercent == 42)
         #expect(history.days[1].codexPercent == 20)
-        #expect(history.currentStreak(relativeTo: secondDay, calendar: calendar) == 2)
+        #expect(history.currentStreak(relativeTo: secondDay, calendar: calendar) == 0)
         #expect(history.lastSevenDays(relativeTo: secondDay, calendar: calendar).count == 7)
+
+        let visibleHistory = history.lastSevenDays(
+            relativeTo: secondDay,
+            currentDayProviders: [.codex],
+            calendar: calendar
+        )
+        #expect(visibleHistory.last?.claudePercent == nil)
+        #expect(visibleHistory.last?.claudeTokens == nil)
+        #expect(visibleHistory.last?.codexPercent == 20)
 
         let activityHistory = try cache.applyingActivityDates(
             [firstDay],
@@ -43,10 +52,9 @@ struct UsageHistoryTests {
             calendar: calendar
         )
         #expect(activityHistory.days[0].activity == true)
-        #expect(activityHistory.days[1].activity == false)
-        // A partial local-log scan cannot contradict usage already recorded by
-        // the provider quota history.
-        #expect(activityHistory.currentStreak(relativeTo: secondDay, calendar: calendar) == 2)
+        #expect(activityHistory.days[1].activity == nil)
+        // A positive quota balance is not evidence of activity on the second day.
+        #expect(activityHistory.currentStreak(relativeTo: secondDay, calendar: calendar) == 0)
 
         let tokenHistory = try cache.applyingDailyTokens(
             [
@@ -78,7 +86,7 @@ struct UsageHistoryTests {
             periodEnd: secondDay.addingTimeInterval(24 * 60 * 60),
             calendar: calendar
         )
-        #expect(growingCurrentDay.days[0].codexTokens == 800)
+        #expect(growingCurrentDay.days[0].codexTokens == 1_200)
         #expect(growingCurrentDay.days[1].codexTokens == 3_000)
 
         let shrinkingCurrentDay = try cache.applyingDailyTokens(
@@ -96,7 +104,52 @@ struct UsageHistoryTests {
             calendar: calendar
         )
         #expect(emptyScanHistory.days[0].claudeTokens == 1_250)
+        #expect(emptyScanHistory.days[0].codexTokens == 1_200)
+        #expect(emptyScanHistory.currentStreak(relativeTo: secondDay, calendar: calendar) == 2)
         #expect(emptyScanHistory.days[1].codexTokens == 3_000)
+    }
+
+    @Test func emptyActivityScansPreservePositiveEvidence() throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ai-usage-history-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let day = Calendar.current.startOfDay(for: .now)
+        let end = day.addingTimeInterval(3_600)
+        let cache = UsageHistoryCache(fileURL: fileURL)
+        _ = try cache.applyingActivityDates([day], periodStart: day, periodEnd: end)
+        let missing = try cache.applyingActivityDates([], periodStart: day, periodEnd: end)
+        #expect(missing.days.first?.activity == true)
+        #expect(missing.currentStreak(relativeTo: end) == 1)
+    }
+
+    @Test func explicitZeroTokensRemainDistinctFromMissingMeasurements() throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ai-usage-history-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let day = Calendar.current.startOfDay(for: .now)
+        let cache = UsageHistoryCache(fileURL: fileURL)
+        let history = try cache.applyingDailyTokens(
+            [.claude: [day: 0]], periodStart: day, periodEnd: day.addingTimeInterval(3_600)
+        )
+        #expect(history.days.first?.claudeTokens == 0)
+        #expect(history.days.first?.codexTokens == nil)
+        #expect(history.currentStreak(relativeTo: day) == 0)
+    }
+
+    @Test func missingLiveQuotaIsNotRecordedAsZero() throws {
+        let fileURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ai-usage-history-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let cache = UsageHistoryCache(fileURL: fileURL)
+        let now = Date.now
+        let missing = ProviderUsageSnapshot(
+            id: .claude,
+            session: UsageWindow(usedPercent: nil, resetsAt: nil),
+            weekly: UsageWindow(usedPercent: nil, resetsAt: nil),
+            observedAt: now, source: .live, message: nil
+        )
+        let history = try cache.recording([missing], at: now)
+        #expect(history.days.first?.claudePercent == nil)
     }
 
     private func snapshot(

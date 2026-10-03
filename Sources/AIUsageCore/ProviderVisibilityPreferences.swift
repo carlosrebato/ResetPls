@@ -2,6 +2,7 @@ import Foundation
 
 public enum ProviderVisibilityPreferences {
     public static let migrationKey = "providerVisibilityMigrated"
+    public static let emptySelectionRecoveryKey = "connectedProviderVisibilityRecovered"
 
     // UserDefaults is documented for concurrent use; Swift has not annotated it Sendable.
     nonisolated(unsafe) public static let store =
@@ -26,6 +27,18 @@ public enum ProviderVisibilityPreferences {
         defaults.set(visible, forKey: key(for: provider))
     }
 
+    /// Returns the user's explicit selection, falling back to providers that
+    /// already have cached data. The fallback repairs older iOS builds that
+    /// connected accounts before provider visibility was initialized.
+    public static func displayedProviders(
+        cachedProviders: Set<UsageProviderID>,
+        in defaults: UserDefaults = store
+    ) -> [UsageProviderID] {
+        let visible = UsageProviderID.allCases.filter { isVisible($0, in: defaults) }
+        if !visible.isEmpty { return visible }
+        return UsageProviderID.allCases.filter { cachedProviders.contains($0) }
+    }
+
     /// Existing installations keep their current two-provider presentation.
     /// Fresh installations start with no provider selected; onboarding enables
     /// each provider only after the user explicitly chooses it.
@@ -39,5 +52,24 @@ public enum ProviderVisibilityPreferences {
             defaults.set(onboardingCompleted, forKey: key(for: provider))
         }
         defaults.set(true, forKey: migrationKey)
+    }
+
+    /// Repair an older first-run flow that connected accounts without showing
+    /// either one. Run only once so later explicit visibility choices remain.
+    public static func recoverConnectedProvidersIfEmpty(
+        onboardingCompleted: Bool,
+        connectedProviders: Set<UsageProviderID>,
+        in defaults: UserDefaults = store
+    ) -> Set<UsageProviderID> {
+        guard onboardingCompleted,
+              defaults.object(forKey: emptySelectionRecoveryKey) == nil else { return [] }
+        if UsageProviderID.allCases.contains(where: { isVisible($0, in: defaults) }) {
+            defaults.set(true, forKey: emptySelectionRecoveryKey)
+            return []
+        }
+        guard !connectedProviders.isEmpty else { return [] }
+        for provider in connectedProviders { setVisible(true, for: provider, in: defaults) }
+        defaults.set(true, forKey: emptySelectionRecoveryKey)
+        return connectedProviders
     }
 }

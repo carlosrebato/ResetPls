@@ -3,6 +3,51 @@ import Testing
 @testable import AIUsageCore
 
 struct UsageSnapshotTests {
+    @Test func widgetFallsBackToCachedProvidersWhenVisibilityWasNeverInitialized() {
+        let suite = "ProviderVisibility.widgetFallback.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let displayed = ProviderVisibilityPreferences.displayedProviders(
+            cachedProviders: [.codex],
+            in: defaults
+        )
+
+        #expect(displayed == [.codex])
+    }
+
+    @Test func explicitVisibilityStillWinsOverCachedWidgetProviders() {
+        let suite = "ProviderVisibility.widgetSelection.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        ProviderVisibilityPreferences.setVisible(true, for: .claude, in: defaults)
+
+        let displayed = ProviderVisibilityPreferences.displayedProviders(
+            cachedProviders: [.claude, .codex],
+            in: defaults
+        )
+
+        #expect(displayed == [.claude])
+    }
+
+    @Test func connectedEmptySelectionIsRecoveredOnceWithoutOverridingLaterChoices() {
+        let suite = "ProviderVisibility.recovery.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        ProviderVisibilityPreferences.migrateIfNeeded(onboardingCompleted: false, in: defaults)
+
+        let recovered = ProviderVisibilityPreferences.recoverConnectedProvidersIfEmpty(
+            onboardingCompleted: true, connectedProviders: [.claude], in: defaults
+        )
+        #expect(recovered == [.claude])
+        #expect(ProviderVisibilityPreferences.isVisible(.claude, in: defaults))
+        ProviderVisibilityPreferences.setVisible(false, for: .claude, in: defaults)
+        #expect(ProviderVisibilityPreferences.recoverConnectedProvidersIfEmpty(
+            onboardingCompleted: true, connectedProviders: [.claude], in: defaults
+        ).isEmpty)
+        #expect(!ProviderVisibilityPreferences.isVisible(.claude, in: defaults))
+    }
+
     @Test func freshOnboardingSelectsNoAssistantUntilTheUserChoosesOne() {
         let suite = "ProviderVisibility.fresh.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -83,6 +128,8 @@ struct UsageSnapshotTests {
 
         #expect(!snapshot.isStale(at: observedAt.addingTimeInterval(599)))
         #expect(snapshot.isStale(at: observedAt.addingTimeInterval(601)))
+        #expect(!snapshot.isStale(at: observedAt.addingTimeInterval(-60)))
+        #expect(snapshot.isStale(at: observedAt.addingTimeInterval(-61)))
     }
 
     @Test func codexUsesWeeklyWindowAsPrimaryDisplayWhenSessionIsUnavailable() {
@@ -156,6 +203,33 @@ struct UsageSnapshotTests {
 
         #expect(totals.unclassifiedTokens == nil)
         #expect(totals.totalTokens == 135)
+    }
+
+    @Test func providerStatusCacheSharesOnlySemanticWidgetState() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ProviderStatusCacheTests-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = ProviderStatusCache(
+            fileURL: directory.appendingPathComponent("provider-status.json")
+        )
+        let recordedAt = Date(timeIntervalSince1970: 1_700_000_000)
+
+        try cache.save([
+            .claude: .live,
+            .codex: .reauthRequired
+        ], at: recordedAt)
+
+        let restored = cache.load()
+        #expect(restored[.claude] == ProviderStatusRecord(
+            provider: .claude,
+            state: .live,
+            recordedAt: recordedAt
+        ))
+        #expect(restored[.codex] == ProviderStatusRecord(
+            provider: .codex,
+            state: .reauthRequired,
+            recordedAt: recordedAt
+        ))
     }
 
     private func snapshot(

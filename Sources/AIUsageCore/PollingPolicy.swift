@@ -7,11 +7,8 @@ public enum PollingPolicy {
             return .seconds(seconds)
         }
 
-        switch severity {
-        case .normal: return .seconds(120)
-        case .warning: return .seconds(60)
-        case .critical: return .seconds(30)
-        case .unavailable: return .seconds(30)
-        }
+        // Both providers can rate-limit aggressive polling; visual warnings
+        // must not turn into more requests and more cached responses.
+        return .seconds(300)
     }
 }

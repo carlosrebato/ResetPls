@@ -51,18 +51,22 @@ public actor ClaudeDirectAdapter: DirectUsageAdapter {
     private let account: ProviderOAuthAccount
     private let session: URLSession
     private let endpoint: URL
+    private let profileEndpoint: URL
     private let now: @Sendable () -> Date
     private var rateLimitedUntil: Date?
+    private var cachedPlan: String?
 
     public init(
         account: ProviderOAuthAccount = ProviderAccounts.shared.claude,
         session: URLSession = .shared,
         endpoint: URL = URL(string: "https://api.anthropic.com/api/oauth/usage")!,
+        profileEndpoint: URL = URL(string: "https://api.anthropic.com/api/oauth/profile")!,
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.account = account
         self.session = session
         self.endpoint = endpoint
+        self.profileEndpoint = profileEndpoint
         self.now = now
     }
 
@@ -91,7 +95,18 @@ public actor ClaudeDirectAdapter: DirectUsageAdapter {
         switch response.statusCode {
         case 200:
             rateLimitedUntil = nil
-            return try ClaudeDirectUsageNormalizer.snapshot(from: data, observedAt: now())
+            let plan: String?
+            if let cachedPlan {
+                plan = cachedPlan
+            } else {
+                plan = await fetchProfilePlan(accessToken: credential.accessToken)
+            }
+            cachedPlan = plan
+            return try ClaudeDirectUsageNormalizer.snapshot(
+                from: data,
+                plan: plan,
+                observedAt: now()
+            )
         case 401, 403:
             throw DirectUsageError.rejected(status: response.statusCode)
         case 429:
@@ -126,6 +141,21 @@ public actor ClaudeDirectAdapter: DirectUsageAdapter {
 
     private static func retryAfter(from response: HTTPURLResponse, now: Date) -> TimeInterval? {
         HTTPRetryAfter.value(from: response, now: now)
+    }
+
+    private func fetchProfilePlan(accessToken: String) async -> String? {
+        var request = URLRequest(url: profileEndpoint)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        request.setValue("AIUsage/0.1", forHTTPHeaderField: "User-Agent")
+
+        guard let (data, response) = try? await Self.perform(request, session: session),
+              response.statusCode == 200
+        else { return nil }
+        return ClaudeProfileNormalizer.plan(from: data)
     }
 }
 
@@ -206,12 +236,16 @@ public actor CodexDirectAdapter: DirectUsageAdapter {
 }
 
 public enum ClaudeDirectUsageNormalizer {
-    public static func snapshot(from data: Data, observedAt: Date) throws -> ProviderUsageSnapshot {
+    public static func snapshot(
+        from data: Data,
+        plan: String? = nil,
+        observedAt: Date
+    ) throws -> ProviderUsageSnapshot {
         guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw DirectUsageError.malformedResponse
         }
-        let session = window(root["five_hour"])
-        let weekly = window(root["seven_day"])
+        let session = window(root["five_hour"], durationSeconds: 5 * 60 * 60)
+        let weekly = window(root["seven_day"], durationSeconds: 7 * 24 * 60 * 60)
         guard session.usedPercent != nil || weekly.usedPercent != nil else {
             throw DirectUsageError.missingUsageWindows
         }
@@ -221,19 +255,20 @@ public enum ClaudeDirectUsageNormalizer {
             weekly: weekly,
             observedAt: observedAt,
             source: .live,
-            message: "Direct"
+            message: plan.map { "Plan \($0)" } ?? "Connected"
         )
     }
 
-    private static func window(_ object: Any?) -> UsageWindow {
+    private static func window(_ object: Any?, durationSeconds: TimeInterval) -> UsageWindow {
         guard let dictionary = object as? [String: Any] else {
             return UsageWindow(usedPercent: nil, resetsAt: nil)
         }
         let value = (dictionary["utilization"] as? NSNumber)?.doubleValue
-        let reset = (dictionary["resets_at"] as? String).flatMap(ISO8601DateFormatter().date)
+        let reset = ProviderTimestamp.date(from: dictionary["resets_at"])
         return UsageWindow(
             usedPercent: value.map { min(max($0, 0), 100) },
-            resetsAt: reset
+            resetsAt: reset,
+            durationSeconds: durationSeconds
         )
     }
 }
@@ -248,7 +283,9 @@ public enum CodexDirectUsageNormalizer {
         }
         guard let limits = response.rateLimit else { throw DirectUsageError.missingUsageWindows }
         let windows = [limits.primaryWindow, limits.secondaryWindow].compactMap { $0 }
-        let weekly = windows.first { ($0.limitWindowSeconds ?? 0) >= 7 * 24 * 60 * 60 }
+        let weekly = windows.first {
+            UsageWindow.isVerifiedWeeklyDuration($0.limitWindowSeconds)
+        }
         let session = weekly == nil ? limits.primaryWindow : windows.first { $0 != weekly }
         let fallbackWeekly = weekly
             ?? (limits.primaryWindow == session ? limits.secondaryWindow : limits.primaryWindow)
@@ -261,15 +298,58 @@ public enum CodexDirectUsageNormalizer {
             weekly: window(fallbackWeekly),
             observedAt: observedAt,
             source: .live,
-            message: response.planType.map { "Plan \($0.capitalized) · Direct" } ?? "Direct"
+            message: response.planType.map { "Plan \($0.capitalized)" } ?? "Connected"
         )
     }
 
     private static func window(_ value: CodexRateLimitWindow?) -> UsageWindow {
         UsageWindow(
             usedPercent: value?.usedPercent.map { min(max($0, 0), 100) },
-            resetsAt: value?.resetAt.map { Date(timeIntervalSince1970: $0) }
+            resetsAt: value?.resetAt.map { Date(timeIntervalSince1970: $0) },
+            durationSeconds: value?.limitWindowSeconds
         )
+    }
+}
+
+public enum ClaudeProfileNormalizer {
+    public static func plan(from data: Data) -> String? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        let account = root["account"] as? [String: Any]
+        let organization = root["organization"] as? [String: Any]
+        let tier = organization?["rate_limit_tier"] as? String
+        let organizationType = organization?["organization_type"] as? String
+
+        if let tier,
+           let multiplier = tier.range(of: #"\d+x"#, options: .regularExpression) {
+            return "Max \(tier[multiplier])"
+        }
+        if organizationType == "claude_max" || account?["has_claude_max"] as? Bool == true {
+            return "Max"
+        }
+        if organizationType == "claude_pro" || account?["has_claude_pro"] as? Bool == true {
+            return "Pro"
+        }
+        if let organizationType,
+           let suffix = organizationType.split(separator: "_").last,
+           ["team", "enterprise"].contains(suffix) {
+            return suffix.capitalized
+        }
+        return nil
+    }
+}
+
+private enum ProviderTimestamp {
+    static func date(from value: Any?) -> Date? {
+        if let number = value as? NSNumber {
+            let raw = number.doubleValue
+            return Date(timeIntervalSince1970: raw > 10_000_000_000 ? raw / 1_000 : raw)
+        }
+        guard let value = value as? String else { return nil }
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return fractional.date(from: value) ?? ISO8601DateFormatter().date(from: value)
     }
 }
 

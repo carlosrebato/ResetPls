@@ -8,34 +8,74 @@ struct LocalUsageMetricsReaderTests {
         "Índice incremental real",
         .enabled(if: ProcessInfo.processInfo.environment["RUN_LOCAL_METRICS_BENCHMARK"] == "1")
     )
-    func indexesRealLogsOnceAndThenReadsZeroBytes() async throws {
+    func indexesRealLogsOnceAndMatchesACleanRebuild() async throws {
         let indexDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("ai-usage-index-benchmark-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: indexDirectory) }
+        try FileManager.default.createDirectory(
+            at: indexDirectory,
+            withIntermediateDirectories: true
+        )
+        let home = FileManager.default.homeDirectoryForCurrentUser
         let reader = LocalUsageMetricsReader(
-            indexURL: indexDirectory.appendingPathComponent("metrics.sqlite3"),
+            homeDirectory: home,
+            indexURL: indexDirectory.appendingPathComponent("incremental.sqlite3"),
             refreshInterval: 0
         )
         let end = Date.now.addingTimeInterval(1)
-        let start = end.addingTimeInterval(-60 * 24 * 60 * 60)
+        let start = end.addingTimeInterval(-90 * 24 * 60 * 60)
         let clock = ContinuousClock()
+        var indexedWeekly: [UsageProviderID: WeeklyUsageTotals] = [:]
+        var indexedDaily: [UsageProviderID: [Date: Int]] = [:]
+        var initialDiagnostics: [UsageProviderID: LocalUsageMetricsDiagnostics] = [:]
 
         let elapsed = await clock.measure {
-            _ = await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
-            _ = await reader.weeklyTotals(for: .codex, periodStart: start, periodEnd: end)
+            for provider in UsageProviderID.allCases {
+                if let totals = await reader.weeklyTotals(
+                    for: provider,
+                    periodStart: start,
+                    periodEnd: end
+                ) {
+                    indexedWeekly[provider] = totals
+                }
+                initialDiagnostics[provider] = await reader.diagnostics(for: provider)
+                indexedDaily[provider] = await reader.dailyTokenTotals(
+                    for: provider,
+                    periodStart: start,
+                    periodEnd: end
+                )
+            }
         }
-        let claudeFirst = await reader.diagnostics(for: .claude)
-        let codexFirst = await reader.diagnostics(for: .codex)
-        #expect((claudeFirst?.scannedBytes ?? 0) + (codexFirst?.scannedBytes ?? 0) > 0)
-
-        let initialBytes = (claudeFirst?.scannedBytes ?? 0) + (codexFirst?.scannedBytes ?? 0)
-        _ = await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
-        _ = await reader.weeklyTotals(for: .codex, periodStart: start, periodEnd: end)
+        let initialBytes = initialDiagnostics.values.reduce(0) { $0 + $1.scannedBytes }
+        #expect(initialBytes > 0)
+        for provider in UsageProviderID.allCases {
+            _ = await reader.weeklyTotals(for: provider, periodStart: start, periodEnd: end)
+        }
         let incrementalBytes = (await reader.diagnostics(for: .claude)?.scannedBytes ?? 0)
             + (await reader.diagnostics(for: .codex)?.scannedBytes ?? 0)
         #expect(incrementalBytes < max(1_000_000, initialBytes / 100))
+
+        let cleanReader = LocalUsageMetricsReader(
+            homeDirectory: home,
+            indexURL: indexDirectory.appendingPathComponent("clean.sqlite3"),
+            refreshInterval: 0
+        )
+        for provider in UsageProviderID.allCases {
+            let cleanWeekly = await cleanReader.weeklyTotals(
+                for: provider,
+                periodStart: start,
+                periodEnd: end
+            )
+            let cleanDaily = await cleanReader.dailyTokenTotals(
+                for: provider,
+                periodStart: start,
+                periodEnd: end
+            )
+            #expect(indexedWeekly[provider] == cleanWeekly)
+            #expect(indexedDaily[provider] == cleanDaily)
+        }
         print(
-            "Cold local metrics index completed in \(elapsed); "
+            "Cold local metrics index and clean-rebuild comparison completed in \(elapsed); "
                 + "initial bytes \(initialBytes), immediate incremental bytes \(incrementalBytes)"
         )
     }
@@ -124,6 +164,28 @@ struct LocalUsageMetricsReaderTests {
         #expect(totals?.reasoningTokens == 8)
         #expect(totals?.totalTokens == 280)
         #expect(abs((totals?.equivalentCostUSD ?? 0) - 0.0017) < 0.000_001)
+        #expect(totals?.hasUnpricedModels == false)
+    }
+
+    @Test func codexNewModelsKeepTheEquivalentCostAvailable() async throws {
+        let home = temporaryHome()
+        let file = home
+            .appendingPathComponent(".codex/sessions/2026/10/02", isDirectory: true)
+            .appendingPathComponent("rollout.jsonl")
+        try writeLines([
+            #"{"timestamp":"2026-10-02T10:00:00Z","type":"turn_context","payload":{"model":"gpt-6.1-sol"}}"#,
+            codexTokenLine(input: 100, cached: 40, output: 10, reasoning: 2, total: 110,
+                           timestamp: "2026-10-02T10:01:00Z"),
+            codexTokenLine(input: 250, cached: 100, output: 30, reasoning: 8, total: 280,
+                           timestamp: "2026-10-02T10:02:00Z")
+        ], to: file)
+
+        let totals = await LocalUsageMetricsReader(homeDirectory: home).weeklyTotals(
+            for: .codex,
+            periodStart: date("2026-09-29T00:00:00Z"),
+            periodEnd: date("2026-10-03T00:00:00Z")
+        )
+        #expect(abs((totals?.equivalentCostUSD ?? 0) - 0.00061) < 0.000_001)
         #expect(totals?.hasUnpricedModels == false)
     }
 
@@ -323,7 +385,8 @@ struct LocalUsageMetricsReaderTests {
             periodStart: start.addingTimeInterval(2 * 60),
             periodEnd: laterEnd
         )
-        #expect(await reader.databaseQueryCount(for: .claude) == 2)
+        // Daily queries use exact cutoffs as well, even within the same day.
+        #expect(await reader.databaseQueryCount(for: .claude) == 3)
 
         let appendedLine = claudeLine(messageID: "second") + "\n"
         let handle = try FileHandle(forWritingTo: file)
@@ -336,7 +399,69 @@ struct LocalUsageMetricsReaderTests {
             periodEnd: laterEnd
         )
         #expect(updated?.totalTokens == 2_700)
-        #expect(await reader.databaseQueryCount(for: .claude) == 3)
+        #expect(await reader.databaseQueryCount(for: .claude) == 4)
+    }
+
+    @Test func cachedWeeklyTotalsRespectBothCutoffsAndReturnCurrentPeriodDates() async throws {
+        let home = temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let file = home.appendingPathComponent(".claude/projects/demo/session.jsonl")
+        let start = date("2026-07-23T09:00:00Z")
+        let boundary = date("2026-07-23T10:00:00Z")
+        let end = date("2026-07-23T11:00:00Z")
+        try writeLines([claudeLine(messageID: "boundary")], to: file)
+        let reader = LocalUsageMetricsReader(homeDirectory: home, refreshInterval: 0)
+
+        // End is exclusive, including when the event is already in the index.
+        #expect(await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: boundary) == nil)
+        let included = await reader.weeklyTotals(for: .claude, periodStart: boundary, periodEnd: end)
+        #expect(included?.totalTokens == 1_350)
+        #expect(included?.periodStart == boundary)
+        #expect(included?.periodEnd == end)
+        let shiftedEnd = end.addingTimeInterval(30)
+        let reused = await reader.weeklyTotals(for: .claude, periodStart: boundary, periodEnd: shiftedEnd)
+        #expect(reused?.periodEnd == shiftedEnd)
+        #expect(await reader.databaseQueryCount(for: .claude) == 1)
+        #expect(await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: boundary) == nil)
+        #expect(await reader.databaseQueryCount(for: .claude) == 1)
+    }
+
+    @Test func cachedDailyTotalsRespectCutoffsWithinTheSameDay() async throws {
+        let home = temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let file = home.appendingPathComponent(".claude/projects/demo/session.jsonl")
+        try writeLines([claudeLine(messageID: "boundary")], to: file)
+        let reader = LocalUsageMetricsReader(homeDirectory: home, refreshInterval: 0)
+        let start = date("2026-07-23T09:00:00Z")
+        let boundary = date("2026-07-23T10:00:00Z")
+        let end = date("2026-07-23T11:00:00Z")
+        #expect(await reader.dailyTokenTotals(for: .claude, periodStart: start, periodEnd: boundary) == [:])
+        let included = await reader.dailyTokenTotals(for: .claude, periodStart: boundary, periodEnd: end)
+        #expect(included.values.reduce(0, +) == 1_350)
+        #expect(await reader.dailyTokenTotals(
+            for: .claude, periodStart: boundary.addingTimeInterval(1), periodEnd: end
+        ) == [:])
+    }
+
+    @Test func cachedClaudeEventsAreDeduplicatedAfterApplyingThePeriod() async throws {
+        let home = temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let root = home.appendingPathComponent(".claude/projects/demo")
+        try writeLines([claudeLine(messageID: "same", timestamp: "2026-07-23T10:00:00Z")],
+                       to: root.appendingPathComponent("first.jsonl"))
+        try writeLines([claudeLine(messageID: "same", timestamp: "2026-07-23T10:05:00Z", input: 200)],
+                       to: root.appendingPathComponent("second.jsonl"))
+        let reader = LocalUsageMetricsReader(homeDirectory: home, refreshInterval: 0)
+        let start = date("2026-07-23T09:00:00Z")
+        let partial = await reader.weeklyTotals(
+            for: .claude, periodStart: start, periodEnd: date("2026-07-23T10:03:00Z")
+        )
+        #expect(partial?.totalTokens == 1_350)
+        let final = await reader.weeklyTotals(
+            for: .claude, periodStart: start, periodEnd: date("2026-07-23T10:06:00Z")
+        )
+        #expect(final?.totalTokens == 1_450)
+        #expect(await reader.databaseQueryCount(for: .claude) == 1)
     }
 
     private func temporaryHome() -> URL {

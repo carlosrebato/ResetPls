@@ -1,5 +1,6 @@
 import AIUsageCore
 import AuthenticationServices
+import Combine
 import Foundation
 import Network
 #if os(macOS)
@@ -9,13 +10,28 @@ import UIKit
 #endif
 
 @MainActor
-public final class ProviderWebAuthentication: NSObject, ASWebAuthenticationPresentationContextProviding {
+public final class ProviderWebAuthentication: NSObject, ObservableObject,
+    ASWebAuthenticationPresentationContextProviding {
     public static let shared = ProviderWebAuthentication()
 
+    @Published public private(set) var activeProvider: UsageProviderID?
     private var webSession: ASWebAuthenticationSession?
     private var loopback: OAuthLoopbackServer?
 
+    public nonisolated static func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        let nsError = error as NSError
+        return nsError.domain == ASWebAuthenticationSessionError.errorDomain
+            && nsError.code == ASWebAuthenticationSessionError.canceledLogin.rawValue
+    }
+
     public func signIn(_ provider: UsageProviderID) async throws {
+        guard activeProvider == nil else {
+            throw ProviderOAuthError.authenticationInProgress
+        }
+        activeProvider = provider
+        defer { activeProvider = nil }
+
         switch provider {
         case .claude:
             try await signInToClaude()
@@ -36,34 +52,25 @@ public final class ProviderWebAuthentication: NSObject, ASWebAuthenticationPrese
     }
 
     private func signInToClaude() async throws {
-        let redirectURI = "https://platform.claude.com/oauth/code/callback"
-        let account = ProviderAccounts.shared.claude
-        let request = try await account.authorizationRequest(redirectURI: redirectURI)
-        let callbackURL = try await webCallback(
-            authorizationURL: request.authorizationURL,
-            callback: .https(host: "platform.claude.com", path: "/oauth/code/callback")
-        )
-        try await account.completeAuthorization(callbackURL: callbackURL, request: request)
-    }
-
-    private func signInToCodex() async throws {
-        let server = OAuthLoopbackServer()
+        // Claude's public native-client flow uses a loopback callback. Trying to
+        // intercept platform.claude.com with ASWebAuthenticationSession.Callback.https
+        // makes macOS reject the session because that domain cannot be associated
+        // with a third-party app.
+        let server = OAuthLoopbackServer(callbackPath: "/callback")
         loopback = server
         defer {
             server.cancel()
             loopback = nil
         }
-        let port = try await server.start(preferredPorts: [1455, 1457])
-        let redirectURI = "http://localhost:\(port)/auth/callback"
-        let account = ProviderAccounts.shared.codex
+        let port = try await server.start(preferredPorts: [54134, 54135])
+        let redirectURI = "http://localhost:\(port)/callback"
+        let account = ProviderAccounts.shared.claude
         let request = try await account.authorizationRequest(redirectURI: redirectURI)
 
-        let session = ASWebAuthenticationSession(
-            url: request.authorizationURL,
-            callbackURLScheme: nil
-        ) { [weak server] _, error in
-            if error != nil { server?.cancel() }
-        }
+        let session = Self.makeLoopbackSession(
+            authorizationURL: request.authorizationURL,
+            server: server
+        )
         session.presentationContextProvider = self
         session.prefersEphemeralWebBrowserSession = false
         webSession = session
@@ -79,48 +86,60 @@ public final class ProviderWebAuthentication: NSObject, ASWebAuthenticationPrese
         try await account.completeAuthorization(callbackURL: callbackURL, request: request)
     }
 
-    private func webCallback(
+    private func signInToCodex() async throws {
+        let server = OAuthLoopbackServer(callbackPath: "/auth/callback")
+        loopback = server
+        defer {
+            server.cancel()
+            loopback = nil
+        }
+        let port = try await server.start(preferredPorts: [1455, 1457])
+        let redirectURI = "http://localhost:\(port)/auth/callback"
+        let account = ProviderAccounts.shared.codex
+        let request = try await account.authorizationRequest(redirectURI: redirectURI)
+
+        let session = Self.makeLoopbackSession(
+            authorizationURL: request.authorizationURL,
+            server: server
+        )
+        session.presentationContextProvider = self
+        session.prefersEphemeralWebBrowserSession = false
+        webSession = session
+        guard session.start() else {
+            webSession = nil
+            throw ProviderOAuthError.invalidAuthorizationResponse
+        }
+        defer {
+            session.cancel()
+            webSession = nil
+        }
+        let callbackURL = try await server.waitForCallback()
+        try await account.completeAuthorization(callbackURL: callbackURL, request: request)
+    }
+
+    nonisolated private static func makeLoopbackSession(
         authorizationURL: URL,
-        callback: ASWebAuthenticationSession.Callback
-    ) async throws -> URL {
-        try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                let session = ASWebAuthenticationSession(
-                    url: authorizationURL,
-                    callback: callback
-                ) { [weak self] callbackURL, error in
-                    self?.webSession = nil
-                    if let callbackURL {
-                        continuation.resume(returning: callbackURL)
-                    } else {
-                        continuation.resume(throwing: error ?? ProviderOAuthError.invalidAuthorizationResponse)
-                    }
-                }
-                session.presentationContextProvider = self
-                session.prefersEphemeralWebBrowserSession = false
-                webSession = session
-                guard session.start() else {
-                    webSession = nil
-                    continuation.resume(throwing: ProviderOAuthError.invalidAuthorizationResponse)
-                    return
-                }
-            }
-        } onCancel: {
-            Task { @MainActor [weak self] in
-                self?.webSession?.cancel()
-                self?.webSession = nil
-            }
+        server: OAuthLoopbackServer
+    ) -> ASWebAuthenticationSession {
+        ASWebAuthenticationSession(url: authorizationURL, callbackURLScheme: nil) {
+            _, error in
+            if error != nil { server.cancel() }
         }
     }
 }
 
 private final class OAuthLoopbackServer: @unchecked Sendable {
+    private let callbackPath: String
     private let queue = DispatchQueue(label: "com.carlosrebato.aiusage.oauth-loopback")
     private var listener: NWListener?
     private var startCallback: CheckedContinuation<UInt16, Error>?
     private var callback: CheckedContinuation<URL, Error>?
     private var pendingResult: Result<URL, Error>?
     private var finished = false
+
+    init(callbackPath: String) {
+        self.callbackPath = callbackPath
+    }
 
     func start(preferredPorts: [UInt16]) async throws -> UInt16 {
         var lastError: Error?
@@ -162,7 +181,7 @@ private final class OAuthLoopbackServer: @unchecked Sendable {
 
     private func start(port value: UInt16) async throws -> UInt16 {
         try await withCheckedThrowingContinuation { continuation in
-            queue.async {
+            queue.async { [self] in
                 do {
                     let port = NWEndpoint.Port(rawValue: value)!
                     let parameters = NWParameters.tcp
@@ -203,14 +222,14 @@ private final class OAuthLoopbackServer: @unchecked Sendable {
             [weak self] data, _, _, _ in
             guard let self else { return }
             let request = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-            guard let url = Self.callbackURL(from: request) else {
+            guard let url = Self.callbackURL(from: request, callbackPath: callbackPath) else {
                 Self.respond(connection, status: "404 Not Found", body: "Not found")
                 return
             }
             Self.respond(
                 connection,
                 status: "200 OK",
-                body: "<h2>Connected</h2><p>You can return to AI Usage.</p>"
+                body: "<h2>Connected</h2><p>You can return to ResetPls.</p>"
             )
             self.finish(.success(url))
         }
@@ -229,10 +248,10 @@ private final class OAuthLoopbackServer: @unchecked Sendable {
         }
     }
 
-    private static func callbackURL(from request: String) -> URL? {
+    private static func callbackURL(from request: String, callbackPath: String) -> URL? {
         guard let firstLine = request.split(separator: "\r\n").first,
               let target = firstLine.split(separator: " ").dropFirst().first,
-              target.hasPrefix("/auth/callback")
+              target == Substring(callbackPath) || target.hasPrefix("\(callbackPath)?")
         else { return nil }
         return URL(string: "http://localhost\(target)")
     }

@@ -10,12 +10,13 @@ public enum AIUsageAppGroup {
            !configured.isEmpty {
             return configured
         }
-        return "group.com.example.aiusage"
+        return "group.com.carlosrebato.aiusage"
     }
 }
 
 public enum AIUsageWidgetKind {
     public static let summary = "AIUsageWidget"
+    public static let provider = "AIUsageProviderWidget"
 }
 
 public struct UsageSnapshotCache: Sendable {
@@ -62,6 +63,8 @@ public struct UsageSnapshotCache: Sendable {
 public struct LastKnownCache: Sendable {
     private let storage: UsageSnapshotCache
 
+    public var fileURL: URL { storage.fileURL }
+
     public init(fileURL: URL? = nil, fileManager: FileManager = .default) {
         storage = UsageSnapshotCache(fileURL: fileURL, fileManager: fileManager)
     }
@@ -72,5 +75,56 @@ public struct LastKnownCache: Sendable {
 
     public func save(_ snapshots: [ProviderUsageSnapshot]) throws {
         try storage.save(snapshots)
+    }
+}
+
+public struct ProviderStatusRecord: Codable, Equatable, Sendable {
+    public let provider: UsageProviderID
+    public let state: ProviderDataState
+    public let recordedAt: Date
+
+    public init(provider: UsageProviderID, state: ProviderDataState, recordedAt: Date) {
+        self.provider = provider
+        self.state = state
+        self.recordedAt = recordedAt
+    }
+}
+
+/// Shares non-sensitive connection state with widgets. Credentials and raw
+/// provider errors never cross the app-group boundary.
+public struct ProviderStatusCache: Sendable {
+    public let fileURL: URL
+
+    public init(fileURL: URL? = nil, fileManager: FileManager = .default) {
+        if let fileURL {
+            self.fileURL = fileURL
+            return
+        }
+        let base = fileManager.containerURL(
+            forSecurityApplicationGroupIdentifier: AIUsageAppGroup.identifier
+        ) ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        self.fileURL = base
+            .appendingPathComponent("AIUsageMac", isDirectory: true)
+            .appendingPathComponent("provider-status.json")
+    }
+
+    public func load() -> [UsageProviderID: ProviderStatusRecord] {
+        guard
+            let data = try? Data(contentsOf: fileURL),
+            let records = try? JSONDecoder().decode([ProviderStatusRecord].self, from: data)
+        else { return [:] }
+        return Dictionary(uniqueKeysWithValues: records.map { ($0.provider, $0) })
+    }
+
+    public func save(_ states: [UsageProviderID: ProviderDataState], at date: Date = .now) throws {
+        try FileManager.default.createDirectory(
+            at: fileURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let records = states.map { provider, state in
+            ProviderStatusRecord(provider: provider, state: state, recordedAt: date)
+        }
+        let data = try JSONEncoder().encode(records)
+        try data.write(to: fileURL, options: .atomic)
     }
 }

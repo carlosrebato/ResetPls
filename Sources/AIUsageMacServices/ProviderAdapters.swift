@@ -14,7 +14,7 @@ struct DirectUsageConnector: UsageConnector {
         } catch let error as ProviderOAuthError {
             switch error {
             case .reauthenticationRequired, .missingRefreshToken:
-                throw UsageConnectorError.notAuthenticated(error.localizedDescription)
+                throw UsageConnectorError.reauthenticationRequired(error.localizedDescription)
             default:
                 throw UsageConnectorError.serverError(error.localizedDescription)
             }
@@ -25,14 +25,16 @@ struct DirectUsageConnector: UsageConnector {
 
     private static func map(_ error: DirectUsageError) -> UsageConnectorError {
         switch error {
-        case .notAuthenticated, .accountIdentifierMissing:
+        case .notAuthenticated:
             .notAuthenticated(error.localizedDescription)
+        case .accountIdentifierMissing:
+            .reauthenticationRequired(error.localizedDescription)
         case .timedOut:
             .timedOut
         case .rateLimited(let retryAfter):
             .rateLimited(retryAfter: retryAfter)
         case .rejected(status: 401), .rejected(status: 403):
-            .notAuthenticated(error.localizedDescription)
+            .reauthenticationRequired(error.localizedDescription)
         case .rejected(let status):
             .serverError("Provider returned HTTP \(status)")
         case .malformedResponse:
@@ -77,11 +79,13 @@ actor ResilientUsageConnector: UsageConnector {
                 return snapshot
             } catch {
                 directError = error
-                directFailures += 1
-                if directFailures >= 3 {
-                    let base = min(pow(2, Double(directFailures - 3)) * 60, 30 * 60)
-                    let jitter = Double.random(in: 0...(base * 0.2))
-                    circuitOpenUntil = now().addingTimeInterval(base + jitter)
+                if Self.shouldTripCircuit(error) {
+                    directFailures += 1
+                    if directFailures >= 3 {
+                        let base = min(pow(2, Double(directFailures - 3)) * 60, 30 * 60)
+                        let jitter = Double.random(in: 0...(base * 0.2))
+                        circuitOpenUntil = now().addingTimeInterval(base + jitter)
+                    }
                 }
             }
         }
@@ -95,6 +99,18 @@ actor ResilientUsageConnector: UsageConnector {
             }
         }
         throw directError ?? UsageConnectorError.serverError("Provider temporarily unavailable")
+    }
+
+    private static func shouldTripCircuit(_ error: Error) -> Bool {
+        guard let error = error as? UsageConnectorError else { return true }
+        return switch error {
+        case .missingUsageWindows, .notAuthenticated, .reauthenticationRequired,
+             .permissionRequired,
+             .rateLimited, .executableNotFound:
+            false
+        case .launchFailed, .timedOut, .malformedResponse, .serverError:
+            true
+        }
     }
 }
 

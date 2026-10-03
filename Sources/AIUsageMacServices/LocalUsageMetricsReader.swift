@@ -42,14 +42,17 @@ public extension LocalUsageMetricsReading {
 public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
     private struct WeeklyCache {
         let generation: Int
-        let periodStart: Date
-        let totals: WeeklyUsageTotals?
+        let coverageStart: Date
+        let events: [IndexedUsageEvent]
+        var selectionStart = -1
+        var selectionEnd = -1
+        var aggregate = TokenAggregate()
     }
 
     private struct DailyCache {
         let generation: Int
-        let startDay: Date
-        let endDay: Date
+        let periodStart: Date
+        let periodEnd: Date
         let totals: [Date: Int]
     }
 
@@ -98,29 +101,50 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
     ) async -> WeeklyUsageTotals? {
         refreshIndexIfNeeded(for: provider)
         let generation = indexGeneration[provider, default: 0]
-        if let cached = weeklyCache[provider],
-           cached.generation == generation,
-           abs(cached.periodStart.timeIntervalSince(periodStart)) < 60 * 60 {
-            return cached.totals
+        var cached: WeeklyCache
+        if let existing = weeklyCache[provider],
+           existing.generation == generation,
+           existing.coverageStart <= periodStart {
+            cached = existing
+        } else {
+            // Cache the indexed events, not an approximate time window. A later
+            // cutoff can include an already indexed event without another scan.
+            guard let events = try? index?.events(
+                provider: provider,
+                periodStart: periodStart,
+                periodEnd: .distantFuture,
+                deduplicating: false
+            ) else { return nil }
+            databaseQueryCounts[provider, default: 0] += 1
+            cached = WeeklyCache(
+                generation: generation,
+                coverageStart: periodStart,
+                events: events.sorted { $0.timestamp < $1.timestamp }
+            )
         }
-        guard let events = try? index?.events(
-            provider: provider,
-            periodStart: periodStart,
-            periodEnd: periodEnd
-        ) else { return nil }
-        databaseQueryCounts[provider, default: 0] += 1
-        let result = totals(
-            from: events,
-            provider: provider,
-            periodStart: periodStart,
-            periodEnd: periodEnd
-        )
-        weeklyCache[provider] = WeeklyCache(
-            generation: generation,
-            periodStart: periodStart,
-            totals: result
-        )
-        return result
+        let start = eventIndex(at: periodStart, in: cached.events)
+        let end = max(start, eventIndex(at: periodEnd, in: cached.events))
+        if cached.selectionStart != start || cached.selectionEnd != end {
+            cached.aggregate = aggregate(from: cached.events[start..<end], provider: provider)
+            cached.selectionStart = start
+            cached.selectionEnd = end
+        }
+        weeklyCache[provider] = cached
+        return cached.aggregate.result(periodStart: periodStart, periodEnd: periodEnd)
+    }
+
+    private func eventIndex(at date: Date, in events: [IndexedUsageEvent]) -> Int {
+        var lower = 0
+        var upper = events.count
+        while lower < upper {
+            let middle = lower + (upper - lower) / 2
+            if events[middle].timestamp < date {
+                lower = middle + 1
+            } else {
+                upper = middle
+            }
+        }
+        return lower
     }
 
     public func activityDates(
@@ -142,13 +166,10 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
     ) async -> [Date: Int] {
         refreshIndexIfNeeded(for: provider)
         let generation = indexGeneration[provider, default: 0]
-        let calendar = Calendar.current
-        let startDay = calendar.startOfDay(for: periodStart)
-        let endDay = calendar.startOfDay(for: periodEnd)
         if let cached = dailyCache[provider],
            cached.generation == generation,
-           cached.startDay == startDay,
-           cached.endDay == endDay {
+           cached.periodStart == periodStart,
+           cached.periodEnd == periodEnd {
             return cached.totals
         }
         guard let totals = try? index?.dailyTokenTotals(
@@ -159,8 +180,8 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
         databaseQueryCounts[provider, default: 0] += 1
         dailyCache[provider] = DailyCache(
             generation: generation,
-            startDay: startDay,
-            endDay: endDay,
+            periodStart: periodStart,
+            periodEnd: periodEnd,
             totals: totals
         )
         return totals
@@ -174,14 +195,28 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
         databaseQueryCounts[provider, default: 0]
     }
 
-    private func totals(
-        from events: [IndexedUsageEvent],
-        provider: UsageProviderID,
-        periodStart: Date,
-        periodEnd: Date
-    ) -> WeeklyUsageTotals? {
+    private func aggregate(
+        from events: ArraySlice<IndexedUsageEvent>,
+        provider: UsageProviderID
+    ) -> TokenAggregate {
         var aggregate = TokenAggregate()
-        for event in events {
+        var selected = Array(events)
+        if provider == .claude {
+            // Apply the cutoff before deduplication, just as the SQLite query
+            // does. A later copy must not hide an earlier measurement that is
+            // still inside the requested period.
+            var messages: [String: IndexedUsageEvent] = [:]
+            for event in selected {
+                if let previous = messages[event.key],
+                   previous.total > event.total
+                    || (previous.total == event.total && previous.timestamp > event.timestamp) {
+                    continue
+                }
+                messages[event.key] = event
+            }
+            selected = messages.values.sorted { $0.key < $1.key }
+        }
+        for event in selected {
             aggregate.input += event.input
             aggregate.cachedInput += event.cachedInput
             aggregate.cacheWrite += event.cacheWrite
@@ -211,7 +246,7 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
                 output: event.output
             )
         }
-        return aggregate.result(periodStart: periodStart, periodEnd: periodEnd)
+        return aggregate
     }
 
     private func refreshIndexIfNeeded(for provider: UsageProviderID) {
@@ -324,6 +359,16 @@ private struct ModelPrice {
 
     static func codex(model: String, at _: Date) -> ModelPrice? {
         switch model.lowercased() {
+        // Standard short-context API equivalents, checked 2026-10-02:
+        // https://developers.openai.com/api/docs/pricing
+        case let value where value.hasPrefix("gpt-6.1-sol"):
+            ModelPrice(input: 2, cachedInput: 0.1, cacheWrite: 2.5, longCacheWrite: 2.5, output: 10)
+        case let value where value.hasPrefix("gpt-6-astra"):
+            ModelPrice(input: 10, cachedInput: 1, cacheWrite: 12.5, longCacheWrite: 12.5, output: 50)
+        case let value where value.hasPrefix("gpt-6-sol"):
+            ModelPrice(input: 2, cachedInput: 0.2, cacheWrite: 2.5, longCacheWrite: 2.5, output: 10)
+        case let value where value.hasPrefix("gpt-6-luna"):
+            ModelPrice(input: 0.1, cachedInput: 0.01, cacheWrite: 0.125, longCacheWrite: 0.125, output: 0.5)
         case let value where value == "gpt-5.6" || value.hasPrefix("gpt-5.6-sol"):
             ModelPrice(input: 5, cachedInput: 0.5, cacheWrite: 6.25, longCacheWrite: 6.25, output: 30)
         case let value where value.hasPrefix("gpt-5.6-terra"):
