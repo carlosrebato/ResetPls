@@ -1,0 +1,7 @@
+.wrangler/
+node_modules/
+dist/
+# Licensed device frames are supplied for the deployed site, not redistributed in Git.
+public/iphone-17.png
+public/macbook-pro-hd.avif
+public/macbook-pro.png

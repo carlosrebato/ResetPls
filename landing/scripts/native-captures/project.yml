@@ -1,0 +1,44 @@
+name: LandingCaptures
+packages:
+  Native:
+    path: .
+settings:
+  base:
+    SWIFT_VERSION: '6.0'
+    CODE_SIGNING_ALLOWED: NO
+targets:
+  CaptureIOS:
+    type: application
+    platform: iOS
+    deploymentTarget: '18.0'
+    sources: [iOSApp]
+    dependencies:
+      - package: Native
+        product: AIUsageCore
+      - package: Native
+        product: AIUsageDesignSystem
+      - package: Native
+        product: AIUsageProviderServices
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: local.resetpls.landing-capture
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        TARGETED_DEVICE_FAMILY: '1'
+  CaptureTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: '18.0'
+    sources: [Tests]
+    dependencies:
+      - target: CaptureIOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  CaptureIOS:
+    build:
+      targets:
+        CaptureIOS: all
+    test:
+      targets: [CaptureTests]

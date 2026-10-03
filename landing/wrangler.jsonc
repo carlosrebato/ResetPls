@@ -1,0 +1,15 @@
+{
+  "name": "resetpls-web",
+  "account_id": "1f11b95e5fdee95f2c55ed57a4508a99",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "assets": {
+    "directory": "./dist"
+  },
+  "routes": [
+    {
+      "pattern": "resetpls.app",
+      "custom_domain": true
+    }
+  ]
+}
