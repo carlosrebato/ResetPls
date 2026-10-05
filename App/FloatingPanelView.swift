@@ -70,7 +70,7 @@ struct FloatingPanelView: View {
             if let status = snapshot.sessionPaceStatus(at: now) {
                 lines.append(language.sessionPaceText(status))
             }
-            if let risk = snapshot.weeklyRisk(at: now) {
+            if let risk = snapshot.weeklyPaceNotice(at: now) {
                 lines.append(language.weeklyRiskText(risk))
             }
             return total + lines.reduce(CGFloat.zero) { $0 + paceLineHeight($1) }

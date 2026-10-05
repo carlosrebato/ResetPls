@@ -836,7 +836,7 @@ struct UsagePaceLine: View {
     @ViewBuilder
     var body: some View {
         let sessionStatus = snapshot.sessionPaceStatus(at: now)
-        let weeklyRisk = snapshot.weeklyRisk(at: now)
+        let weeklyRisk = snapshot.weeklyPaceNotice(at: now)
         if sessionStatus != nil || weeklyRisk != nil {
             VStack(alignment: .leading, spacing: 5) {
                 if let sessionStatus {
@@ -851,7 +851,8 @@ struct UsagePaceLine: View {
                     WeeklyRiskLine(
                         text: language.weeklyRiskText(weeklyRisk),
                         help: language.weeklyRiskHelp(weeklyRisk),
-                        color: weeklyRiskColor(weeklyRisk.state)
+                        color: snapshot.primaryQuotaID == .weekly
+                            ? weeklyRiskColor(weeklyRisk.state) : UsageTheme.mutedText
                     )
                 }
             }

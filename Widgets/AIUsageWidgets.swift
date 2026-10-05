@@ -722,23 +722,22 @@ private struct UsageWidgetView: View {
         if isStale(snapshot) {
             return language.text("UPDATE FAILED · OPEN APP", "FALLO AL ACTUALIZAR · ABRE LA APP")
         }
-        if let risk = snapshot.weeklyRisk(at: entry.date) { return language.weeklyRiskText(risk) }
-        return snapshot.sessionPaceStatus(at: entry.date).map(language.sessionPaceText)
+        return snapshot.preferredPaceNotice(at: entry.date).map(language.paceNoticeText)
     }
 
     private func statusColor(_ snapshot: ProviderUsageSnapshot) -> Color {
         if actionLabel(for: snapshot.id) != nil || isStale(snapshot) { return UsageTheme.cached }
-        if let risk = snapshot.weeklyRisk(at: entry.date) {
+        switch snapshot.preferredPaceNotice(at: entry.date) {
+        case .weekly(let risk):
+            guard snapshot.primaryQuotaID == .weekly else { return UsageTheme.mutedText }
             switch risk.state {
             case .roomToSpare, .onTrack: return UsageTheme.mutedText
             case .atRisk: return UsageTheme.amber
             case .highRisk: return UsageTheme.red
             }
+        case .session(.limitIn): return UsageTheme.amber
+        case .session, nil: return UsageTheme.mutedText
         }
-        if let status = snapshot.sessionPaceStatus(at: entry.date), case .limitIn = status {
-            return UsageTheme.amber
-        }
-        return UsageTheme.mutedText
     }
 
     private func number(_ value: Double?) -> String {
