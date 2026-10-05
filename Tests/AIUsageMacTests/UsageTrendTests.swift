@@ -17,7 +17,7 @@ struct UsageTrendTests {
         #expect(!trend.hasSeries(for: .codex))
     }
 
-    @Test func missingMeasurementsBreakTheLineAndKnownZeroStaysVisible() {
+    @Test func emptyDaysDropToZeroWithoutBreakingTheLine() {
         let days = [
             UsageHistoryDay(date: date, claudeTokens: 100),
             UsageHistoryDay(date: date.addingTimeInterval(86_400)),
@@ -25,9 +25,10 @@ struct UsageTrendTests {
             UsageHistoryDay(date: date.addingTimeInterval(3 * 86_400), claudeTokens: 200)
         ]
         let trend = UsageTrend(days: days, providers: [.claude])
-        #expect(trend.value(for: days[1], provider: .claude) == nil)
+        #expect(trend.value(for: days[1], provider: .claude) == 0)
         #expect(trend.normalizedValue(for: days[2], provider: .claude) == 0)
-        #expect(trend.segments(for: .claude) == [[0], [2, 3]])
+        #expect(trend.segments(for: .claude) == [[0, 1, 2, 3]])
+        #expect(days[1].claudeTokens == nil)
     }
 
     @Test func onlyVisibleProvidersDetermineTheUnitAndScale() {
@@ -43,7 +44,7 @@ struct UsageTrendTests {
         #expect(tokens.normalizedValue(for: tokenDay, provider: .claude) == 1)
     }
 
-    @Test func quotaFallbackPreservesGapsAndZeroMeasurements() {
+    @Test func quotaFallbackAlsoZeroFillsEmptyDays() {
         let days = [
             UsageHistoryDay(date: date, codexPercent: 0),
             UsageHistoryDay(date: date.addingTimeInterval(86_400)),
@@ -52,7 +53,8 @@ struct UsageTrendTests {
         let trend = UsageTrend(days: days, providers: [.codex])
         #expect(trend.metric == .percent)
         #expect(trend.hasSeries(for: .codex))
-        #expect(trend.segments(for: .codex) == [[0], [2]])
+        #expect(trend.segments(for: .codex) == [[0, 1, 2]])
+        #expect(trend.value(for: days[1], provider: .codex) == 0)
         #expect(trend.normalizedValue(for: days[2], provider: .codex) == 0.7)
     }
 
@@ -64,7 +66,7 @@ struct UsageTrendTests {
         #expect(trend.normalizedValue(for: day, provider: .claude) == 0)
     }
 
-    @Test func disconnectedTodayIsAGapInsteadOfADropToZero() {
+    @Test func emptyTodayDropsToZeroWithoutChangingStoredHistory() {
         let yesterday = date.addingTimeInterval(-86_400)
         let history = UsageHistory(days: [
             UsageHistoryDay(date: yesterday, claudeTokens: 100),
@@ -72,8 +74,9 @@ struct UsageTrendTests {
         ])
         let days = history.lastSevenDays(relativeTo: date, currentDayProviders: [])
         let trend = UsageTrend(days: days, providers: [.claude])
-        #expect(trend.value(for: days.last!, provider: .claude) == nil)
-        #expect(trend.segments(for: .claude) == [[5]])
+        #expect(trend.value(for: days.last!, provider: .claude) == 0)
+        #expect(trend.segments(for: .claude) == [Array(0..<7)])
+        #expect(history.days.last?.claudeTokens == 200)
     }
 
     @Test func noMeasurementsProduceNoSeries() {

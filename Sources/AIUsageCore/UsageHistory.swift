@@ -274,6 +274,14 @@ public struct UsageTrend: Sendable {
 
     public func value(for day: UsageHistoryDay, provider: UsageProviderID) -> Double? {
         guard providers.contains(provider) else { return nil }
+        // Zero-fill only the chart of a provider with evidence for this metric.
+        // Do not fabricate cached measurements, activity, or a token series
+        // for a provider whose history only contains quota percentages.
+        return measuredValue(for: day, provider: provider)
+            ?? (hasSeries(for: provider) ? 0 : nil)
+    }
+
+    private func measuredValue(for day: UsageHistoryDay, provider: UsageProviderID) -> Double? {
         switch metric {
         case .tokens:
             return day.tokens(for: provider).map { Double(max($0, 0)) }
@@ -288,10 +296,11 @@ public struct UsageTrend: Sendable {
     }
 
     public func hasSeries(for provider: UsageProviderID) -> Bool {
-        days.contains { value(for: $0, provider: provider) != nil }
+        providers.contains(provider)
+            && days.contains { measuredValue(for: $0, provider: provider) != nil }
     }
 
-    /// Indices of consecutive known measurements, including explicit zeros.
+    /// A known series continues through empty days at the chart's zero baseline.
     public func segments(for provider: UsageProviderID) -> [[Int]] {
         var result: [[Int]] = []
         var current: [Int] = []
