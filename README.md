@@ -1,13 +1,12 @@
 # ResetPls — Claude Code & Codex Usage Tracker for Mac and iPhone
 
-> This repository contains the Mac, iOS and landing-page source for ResetPls. Mac
-> releases and the Sparkle update feed remain at
-> [carlosrebato/ai-usage-mac](https://github.com/carlosrebato/ai-usage-mac)
-> until the migration in [MIGRATION.md](MIGRATION.md) is verified.
+> This repository contains ResetPls source, signed Mac releases and its Sparkle
+> update feed. See [MIGRATION.md](MIGRATION.md) for the one-time manual migration
+> from the retired private repository.
 
 [![CI](https://github.com/carlosrebato/ResetPls/actions/workflows/ci.yml/badge.svg)](https://github.com/carlosrebato/ResetPls/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/carlosrebato/ResetPls/actions/workflows/codeql.yml/badge.svg)](https://github.com/carlosrebato/ResetPls/actions/workflows/codeql.yml)
-[![Latest release](https://img.shields.io/github/v/release/carlosrebato/ai-usage-mac?include_prereleases)](https://github.com/carlosrebato/ai-usage-mac/releases)
+[![Latest release](https://img.shields.io/github/v/release/carlosrebato/ResetPls)](https://github.com/carlosrebato/ResetPls/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ResetPls is an independent, local-first Mac and iPhone app for tracking Claude
@@ -24,16 +23,17 @@ signed update channel or constitute an App Store release.
 ## Install
 
 Download the latest notarized macOS ZIP from
-[GitHub Releases](https://github.com/carlosrebato/ai-usage-mac/releases). Stable
-0.1.5 is branded ResetPls but its bundle is still named **AI Usage.app**. The
-transition beta installs as **ResetPls.app**; follow the one-time instructions
-in the release repository's distribution guide rather than renaming or
-overwriting the old bundle manually. The current release is a public beta;
-please report reproducible issues without attaching credentials or conversation
+[GitHub Releases](https://github.com/carlosrebato/ResetPls/releases). Quit the
+running app, unzip the download and drag **ResetPls.app** into Applications,
+replacing the previous ResetPls.app. If you still have **AI Usage.app**, remove
+that old app bundle after quitting it; do not run both apps. Preferences and
+connections are preserved because the bundle identifier, signing team and
+Keychain access remain unchanged. Subsequent updates use this repository.
+Please report reproducible issues without attaching credentials or conversation
 logs.
 
 Website: [resetpls.app](https://resetpls.app). Source and issue reports now live
-in this repository; signed downloads remain in the release repository above.
+in this repository, along with signed downloads and automatic updates.
 
 ## Requirements
 

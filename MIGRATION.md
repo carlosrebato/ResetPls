@@ -1,9 +1,24 @@
 # ResetPls repository migration
 
-The current public release repository is `carlosrebato/ai-usage-mac`. Existing
-Mac installations read `https://raw.githubusercontent.com/carlosrebato/ai-usage-mac/main/appcast.xml`.
-This source repository must not replace that feed or its signed release assets
-until an end-to-end update has been tested from a currently installed build.
+## Manual cutover — 2026-10-05
+
+The owner made `carlosrebato/ai-usage-mac` private and chose a one-time manual
+install for the two external clients, Álvaro and Viti. The maintainer's Mac is
+migrated locally. The retired private feed cannot serve automatic updates.
+
+ResetPls 0.1.7 (48) and later read
+`https://raw.githubusercontent.com/carlosrebato/ResetPls/main/appcast.xml`.
+Signed downloads and website links now use the public ResetPls repository.
+
+Quit the running app, unzip the notarized download and replace **ResetPls.app**
+in Applications. If the old app is still named **AI Usage.app**, remove only
+that old app bundle after quitting it; do not run both apps. Do not clear
+preferences, App Group data or Keychain entries.
+
+Bundle ID `com.carlosrebato.aiusage`, team `467CC6L4BF`, App Group and Sparkle
+public key stay unchanged. Preferences, connections and stable/beta selections
+are preserved. Both channels share the feed: stable items are untagged; future
+beta items must carry Sparkle's `beta` channel tag.
 
 ## Prepared here
 
@@ -16,21 +31,15 @@ until an end-to-end update has been tested from a currently installed build.
 - Source publication and updater migration are separate operations. Making
   ResetPls public does not redirect any installed client's Sparkle feed.
 
-## Cutover gates
+## Release checks
 
-1. Finish the code review, macOS/iOS build checks, and secret scan.
-2. Keep `ai-usage-mac` public and its current appcast available during source
-   publication and updater cutover. ResetPls source became public on 2026-10-05;
-   this alone does not migrate signed releases or update feeds.
-3. When a public ResetPls feed is ready, publish a higher-version, correctly
-   signed bridge release through the **old** appcast. The bridge app keeps the
-   same bundle ID, signing identity and Sparkle public key, but points future
-   checks to the new public appcast.
-4. Test updating an existing installation through the old feed and then test
-   the next check against the new feed. Leave the old feed available for users
-   who have not launched the app yet.
-5. Only after the source, release, and landing have moved successfully, remove
-   the duplicate native app and landing from NSPanel in a separate commit.
+1. Tests and universal Mac archive pass; app and widget use Developer ID signing.
+2. Final ZIP is Apple-notarized and passes codesign, stapler and Gatekeeper after
+   extraction. Its EdDSA signature verifies against the app's Sparkle key.
+3. New public feed and release ZIP are accessible without GitHub authentication.
+4. Web `/`, `/en/` and `/es/` all download the same signed release.
+5. Installed maintainer app keeps existing settings and reads the new feed.
 
-No step in this document authorizes replacing an installed app or publishing a
-release before the update path is verified.
+There is no automatic redirect from the old private feed. External clients must
+install the new ZIP once before automatic updates resume. Removing duplicate
+native and landing sources from NSPanel is a separate cleanup task.
