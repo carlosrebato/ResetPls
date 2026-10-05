@@ -30,7 +30,7 @@ jobs:
     # Leave time for analysis, result upload and post-job cleanup as well.
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: github/codeql-action/init@v4
         with:
           languages: swift
