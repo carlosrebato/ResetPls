@@ -1,5 +1,10 @@
 # Public release checklist
 
+The completed items below record the earlier `ai-usage-mac` release. They do
+not automatically establish readiness of the newer ResetPls repository or an
+iOS App Store launch. The ResetPls source-publication review is recorded in
+`docs/publication-audit.md`; update-feed cutover remains gated by `MIGRATION.md`.
+
 ResetPls is intended to become a standalone, open-source macOS project. Do not
 make the current monorepo public as a shortcut: its unrelated history, workflow
 logs and configuration must not become part of the release.

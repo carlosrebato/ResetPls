@@ -1,11 +1,12 @@
 # ResetPls — Claude Code & Codex Usage Tracker for Mac and iPhone
 
-> This repository is the private source integration for ResetPls. Public Mac
+> This repository contains the Mac, iOS and landing-page source for ResetPls. Mac
 > releases and the Sparkle update feed remain at
 > [carlosrebato/ai-usage-mac](https://github.com/carlosrebato/ai-usage-mac)
 > until the migration in [MIGRATION.md](MIGRATION.md) is verified.
 
-[![CI](https://github.com/carlosrebato/ai-usage-mac/actions/workflows/ci.yml/badge.svg)](https://github.com/carlosrebato/ai-usage-mac/actions/workflows/ci.yml)
+[![CI](https://github.com/carlosrebato/ResetPls/actions/workflows/ci.yml/badge.svg)](https://github.com/carlosrebato/ResetPls/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/carlosrebato/ResetPls/actions/workflows/codeql.yml/badge.svg)](https://github.com/carlosrebato/ResetPls/actions/workflows/codeql.yml)
 [![Latest release](https://img.shields.io/github/v/release/carlosrebato/ai-usage-mac?include_prereleases)](https://github.com/carlosrebato/ai-usage-mac/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -13,6 +14,12 @@ ResetPls is an independent, local-first Mac and iPhone app for tracking Claude
 Code and OpenAI Codex usage limits, reset times, tokens and estimated cost. It
 reads local counters in read-only mode and never sends conversation content or
 credentials to the project maintainers.
+
+Original project source is MIT-licensed. Third-party dependencies, provider
+marks and marketing artwork retain their own terms; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Device-frame binaries are not
+included in this repository. Publishing source does not change the existing
+signed update channel or constitute an App Store release.
 
 ## Install
 

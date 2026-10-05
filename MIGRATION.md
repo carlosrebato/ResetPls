@@ -2,7 +2,7 @@
 
 The current public release repository is `carlosrebato/ai-usage-mac`. Existing
 Mac installations read `https://raw.githubusercontent.com/carlosrebato/ai-usage-mac/main/appcast.xml`.
-This private repository must not replace that feed or its signed release assets
+This source repository must not replace that feed or its signed release assets
 until an end-to-end update has been tested from a currently installed build.
 
 ## Prepared here
@@ -13,6 +13,8 @@ until an end-to-end update has been tested from a currently installed build.
 - The landing source lives in `landing/`. Device-frame binaries with third-party
   redistribution restrictions are not committed; the existing deployed site
   remains the live site until replacement assets or suitable rights are ready.
+- Source publication and updater migration are separate operations. Making
+  ResetPls public does not redirect any installed client's Sparkle feed.
 
 ## Cutover gates
 
