@@ -10,7 +10,7 @@ fi
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 RELEASE_TAG="$1"
 ARCHIVES="$2"
-GENERATOR="$ROOT/.build/artifacts/sparkle/Sparkle/bin/generate_appcast"
+GENERATOR="${AI_USAGE_APPCAST_GENERATOR:-$ROOT/.build/artifacts/sparkle/Sparkle/bin/generate_appcast}"
 
 [ -x "$GENERATOR" ] || {
   echo "Sparkle tools are missing. Run 'swift package resolve' first." >&2
@@ -23,9 +23,9 @@ GENERATOR="$ROOT/.build/artifacts/sparkle/Sparkle/bin/generate_appcast"
 
 "$GENERATOR" \
   --account com.carlosrebato.aiusage \
-  --download-url-prefix "https://github.com/carlosrebato/ai-usage-mac/releases/download/$RELEASE_TAG/" \
-  --link "https://github.com/carlosrebato/ai-usage-mac" \
-  --full-release-notes-url "https://github.com/carlosrebato/ai-usage-mac/releases" \
+  --download-url-prefix "https://github.com/carlosrebato/ResetPls/releases/download/$RELEASE_TAG/" \
+  --link "https://github.com/carlosrebato/ResetPls" \
+  --full-release-notes-url "https://github.com/carlosrebato/ResetPls/releases" \
   -o "$ARCHIVES/appcast.xml" \
   "$ARCHIVES"
 

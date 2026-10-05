@@ -39,7 +39,7 @@
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
 	<key>SUFeedURL</key>
-	<string>https://raw.githubusercontent.com/carlosrebato/ai-usage-mac/main/appcast.xml</string>
+	<string>https://raw.githubusercontent.com/carlosrebato/ResetPls/main/appcast.xml</string>
 	<key>SUScheduledCheckInterval</key>
 	<integer>86400</integer>
 	<key>SUPublicEDKey</key>
