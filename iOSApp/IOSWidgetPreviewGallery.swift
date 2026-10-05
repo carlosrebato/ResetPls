@@ -40,6 +40,7 @@ struct IOSWidgetPreviewGallery: View {
                     if mode == .lockReauth {
                         PreviewSection("LOCK · CODEX REAUTH REQUIRED") {
                             VStack(spacing: 10) {
+                                CircularUsageWidgetPreview(provider: .codex, requiresReauth: true)
                                 RectangularUsageWidgetPreview(
                                     reauthProvider: .codex,
                                     spanishCopies: spanishCopies
@@ -59,6 +60,7 @@ struct IOSWidgetPreviewGallery: View {
                         }
                         PreviewSection("LOCK · ONE SERVICE · FRESH") {
                             VStack(spacing: 10) {
+                                CircularUsageWidgetPreview(provider: .codex)
                                 RectangularUsageWidgetPreview(providers: [.codex], spanishCopies: spanishCopies)
                                 InlineUsageWidgetPreview(providers: [.codex], spanishCopies: spanishCopies)
                             }
@@ -131,6 +133,7 @@ struct IOSWidgetPreviewGallery: View {
                         }
                     } else if mode == .lockSingle {
                         PreviewSection("LOCK SCREEN · ONE SERVICE") {
+                            CircularUsageWidgetPreview(provider: .codex)
                             RectangularUsageWidgetPreview(providers: [.codex])
                         }
 
@@ -150,6 +153,13 @@ struct IOSWidgetPreviewGallery: View {
                             MediumUsageWidgetPreview(codexState: .staleFailed, spanishCopies: spanishCopies)
                         }
                     } else {
+                        PreviewSection("LOCK SCREEN · CIRCULAR") {
+                            HStack(spacing: 18) {
+                                CircularUsageWidgetPreview(provider: .claude, percent: 28)
+                                CircularUsageWidgetPreview(provider: .codex, percent: 64)
+                            }
+                        }
+
                         PreviewSection("LOCK SCREEN · RECTANGULAR") {
                             RectangularUsageWidgetPreview()
                         }
@@ -1040,6 +1050,39 @@ private struct RectangularUsageWidgetPreview: View {
     }
 }
 
+private struct CircularUsageWidgetPreview: View {
+    var provider: UsageProviderID
+    var percent = 64
+    var requiresReauth = false
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(.white.opacity(0.18), lineWidth: 4.5)
+            Circle()
+                .trim(from: 0, to: CGFloat(percent) / 100)
+                .stroke(.white.opacity(requiresReauth ? 0.45 : 0.9),
+                        style: StrokeStyle(lineWidth: 4.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 1) {
+                ProviderGlyph(provider: provider, size: 9, color: .white.opacity(0.78))
+                if requiresReauth {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 13, weight: .bold))
+                } else {
+                    Text("\(percent)%")
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .monospacedDigit()
+                }
+            }
+        }
+        .foregroundStyle(.white)
+        .frame(width: 56, height: 56)
+        .padding(7)
+        .background(.ultraThinMaterial, in: Circle())
+        .overlay { Circle().stroke(Color.white.opacity(0.12), lineWidth: 1) }
+    }
+}
+
 private struct InlineUsageWidgetPreview: View {
     var providers: Set<UsageProviderID> = Set(UsageProviderID.allCases)
     var state: WidgetDataState = .fresh
@@ -1064,11 +1107,11 @@ private struct InlineUsageWidgetPreview: View {
                         : "64%"
                     )
                 }
-                if reauthProvider == nil {
+                if reauthProvider == nil, providers.count == 1 {
                     Image(systemName: "clock")
                         .font(.system(size: 9, weight: .semibold))
                         .foregroundStyle(.white.opacity(0.65))
-                    Text(state == .staleFailed ? "10:14" : providers.count == 1 ? "5d" : "1h 29m")
+                    Text(state == .staleFailed ? "10:14" : "5d")
                 }
             } else if providers.contains(.codex) {
                 ProviderGlyph(provider: .codex, size: 11, color: .white.opacity(0.82))

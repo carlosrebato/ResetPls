@@ -44,7 +44,8 @@ private struct ActiveProviderOptions: DynamicOptionsProvider {
         let providers = ProviderVisibilityPreferences.displayedProviders(
             cachedProviders: Set(cached.keys)
         )
-        guard providers.count == 1, let provider = providers.first else { return nil }
+        // Render a concrete service immediately; Edit Widget can change it.
+        let provider = providers.first ?? .claude
         return provider == .claude ? .claude : .codex
     }
 }
@@ -55,6 +56,10 @@ private struct ProviderWidgetIntent: WidgetConfigurationIntent {
 
     @Parameter(title: "Service", optionsProvider: ActiveProviderOptions())
     var provider: WidgetProviderChoice?
+
+    init() {
+        provider = .claude
+    }
 }
 
 private struct UsageWidgetProvider: TimelineProvider {
@@ -182,6 +187,7 @@ private struct UsageWidgetView: View {
             case .systemSmall: smallContent
             case .systemLarge: largeContent
             #if os(iOS)
+            case .accessoryCircular: circularContent
             case .accessoryRectangular: rectangularContent
             case .accessoryInline: inlineContent
             #endif
@@ -190,7 +196,7 @@ private struct UsageWidgetView: View {
         }
         .containerBackground(for: .widget) {
             #if os(iOS)
-            if family == .accessoryInline || family == .accessoryRectangular {
+            if family == .accessoryInline || family == .accessoryCircular || family == .accessoryRectangular {
                 Color.clear
             } else {
                 UsageTheme.panelGradient
@@ -543,6 +549,41 @@ private struct UsageWidgetView: View {
 
     #if os(iOS)
     @ViewBuilder
+    private var circularContent: some View {
+        if let snapshot = selectedSnapshot {
+            let percentValue = min(max(snapshot.primaryDisplayWindow.normalizedPercent / 100, 0), 1)
+            ZStack {
+                Circle()
+                    .stroke(.primary.opacity(0.18), lineWidth: 4.5)
+                Circle()
+                    .trim(from: 0, to: percentValue)
+                    .stroke(
+                        .primary.opacity(actionLabel(for: snapshot.id) == nil ? 0.9 : 0.45),
+                        style: StrokeStyle(lineWidth: 4.5, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
+                VStack(spacing: 1) {
+                    ProviderGlyph(provider: snapshot.id, size: 9, color: .primary.opacity(0.78))
+                    if actionLabel(for: snapshot.id) != nil {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 13, weight: .bold))
+                    } else {
+                        Text(percent(snapshot.primaryDisplayWindow.usedPercent))
+                            .font(.system(size: 14, weight: .bold, design: .rounded))
+                            .monospacedDigit()
+                            .minimumScaleFactor(0.72)
+                    }
+                }
+            }
+            .padding(3)
+            .widgetAccentable()
+        } else {
+            Image(systemName: "arrow.clockwise")
+                .font(.system(size: 17, weight: .semibold))
+        }
+    }
+
+    @ViewBuilder
     private var rectangularContent: some View {
         if displayedSnapshots.isEmpty {
             HStack(spacing: 9) {
@@ -618,18 +659,20 @@ private struct UsageWidgetView: View {
             HStack(spacing: 5) {
                 ForEach(Array(displayedSnapshots.enumerated()), id: \.element.id) { index, snapshot in
                     if index > 0 { Text("·").foregroundStyle(.secondary) }
-                    Image(systemName: snapshot.id.symbolName)
+                    ProviderGlyph(provider: snapshot.id, size: 11, color: .primary.opacity(0.88))
                     if let action = actionLabel(for: snapshot.id) {
                         Text(action.lowercased(with: language.locale))
                     } else {
                         Text(percent(snapshot.primaryDisplayWindow.usedPercent))
-                        if isStale(snapshot) {
+                        if isStale(snapshot), displayedSnapshots.count == 1 {
                             Image(systemName: "clock")
                             Text(snapshot.observedAt.formatted(date: .omitted, time: .shortened))
                         }
                     }
                 }
-                if !displayedSnapshots.contains(where: isStale), actionProvider == nil {
+                if displayedSnapshots.count == 1,
+                   !displayedSnapshots.contains(where: isStale),
+                   actionProvider == nil {
                     Image(systemName: "clock")
                     Text(shortReset(displayedSnapshots.min {
                         ($0.availabilityReset ?? .distantFuture) < ($1.availabilityReset ?? .distantFuture)
@@ -956,7 +999,11 @@ private struct ProviderUsageWidget: Widget {
         .configurationDisplayName("ResetPls · Service")
         .description(language.text("The selected service, with room to breathe.",
                                    "El servicio seleccionado, con espacio para respirar."))
+        #if os(iOS)
+        .supportedFamilies([.systemSmall, .accessoryCircular])
+        #else
         .supportedFamilies([.systemSmall])
+        #endif
         .contentMarginsDisabled()
     }
 }
