@@ -205,19 +205,19 @@ struct IOSSettingsView: View {
             supportRow(
                 language.text("Help", "Ayuda"),
                 systemName: "questionmark.circle",
-                destination: "https://github.com/carlosrebato/ai-usage-mac#readme"
+                destination: ProjectLinks.help
             )
             settingsDivider
             supportRow(
                 language.text("Privacy policy", "Política de privacidad"),
                 systemName: "hand.raised",
-                destination: "https://github.com/carlosrebato/ai-usage-mac/blob/main/PRIVACY.md"
+                destination: ProjectLinks.privacy
             )
             settingsDivider
             supportRow(
                 language.text("Report an issue", "Informar de un problema"),
                 systemName: "exclamationmark.bubble",
-                destination: "https://github.com/carlosrebato/ai-usage-mac/issues/new/choose"
+                destination: ProjectLinks.reportIssue
             )
         }
     }

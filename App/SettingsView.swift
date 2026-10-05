@@ -471,13 +471,13 @@ struct SettingsView: View {
                     exportDiagnostics()
                 }
                 SettingsLinkButton(title: language.text("Help", "Ayuda")) {
-                    openSupportURL("https://github.com/carlosrebato/ai-usage-mac#readme")
+                    openSupportURL(ProjectLinks.help)
                 }
                 SettingsLinkButton(title: language.text("Privacy", "Privacidad")) {
-                    openSupportURL("https://github.com/carlosrebato/ai-usage-mac/blob/main/PRIVACY.md")
+                    openSupportURL(ProjectLinks.privacy)
                 }
                 SettingsLinkButton(title: language.text("Report an issue", "Informar de un problema")) {
-                    openSupportURL("https://github.com/carlosrebato/ai-usage-mac/issues/new/choose")
+                    openSupportURL(ProjectLinks.reportIssue)
                 }
             }
             if let diagnosticExportError {
