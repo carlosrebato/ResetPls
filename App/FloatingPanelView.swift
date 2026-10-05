@@ -65,13 +65,27 @@ struct FloatingPanelView: View {
     }
 
     private var panelSize: NSSize {
-        let paceLines = visibleSnapshots.filter {
-            $0.weeklyRisk(at: now) != nil
-                || $0.session.usedPercent != nil
-                || language.paceText($0.session.usedPercent != nil
-                    ? $0.sessionPaceEstimate(at: now) : $0.paceEstimate(at: now)) != nil
-        }.count
-        return NSSize(width: Self.size.width, height: Self.size.height + CGFloat(paceLines) * 32)
+        let extraHeight = visibleSnapshots.reduce(CGFloat.zero) { total, snapshot in
+            var lines: [String] = []
+            if let status = snapshot.sessionPaceStatus(at: now) {
+                lines.append(language.sessionPaceText(status))
+            }
+            if let risk = snapshot.weeklyRisk(at: now) {
+                lines.append(language.weeklyRiskText(risk))
+            }
+            return total + lines.reduce(CGFloat.zero) { $0 + paceLineHeight($1) }
+        }
+        return NSSize(width: Self.size.width, height: Self.size.height + extraHeight)
+    }
+
+    private func paceLineHeight(_ text: String) -> CGFloat {
+        let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        let bounds = (text as NSString).boundingRect(
+            with: NSSize(width: Self.size.width - 32, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading],
+            attributes: [.font: font]
+        )
+        return max(32, ceil(bounds.height) + 14)
     }
 
     private var visibleSnapshots: [ProviderUsageSnapshot] {

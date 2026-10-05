@@ -119,22 +119,19 @@ public struct UsageDetailedMetrics: View {
     public let history: UsageHistory
     public let language: AppLanguage
     public let verticalExpansion: CGFloat
-    public let persistentPace: Bool
 
     public init(
         snapshots: [ProviderUsageSnapshot],
         now: Date,
         history: UsageHistory = UsageHistory(),
         language: AppLanguage = .english,
-        verticalExpansion: CGFloat = 0,
-        persistentPace: Bool = true
+        verticalExpansion: CGFloat = 0
     ) {
         self.snapshots = snapshots
         self.now = now
         self.history = history
         self.language = language
         self.verticalExpansion = verticalExpansion
-        self.persistentPace = persistentPace
     }
 
     public var body: some View {
@@ -270,12 +267,7 @@ public struct UsageDetailedMetrics: View {
                         .foregroundStyle(UsageTheme.red)
                 }
             }
-            UsagePaceLine(
-                snapshot: snapshot,
-                now: now,
-                language: language,
-                persistentSessionStatus: persistentPace
-            )
+            UsagePaceLine(snapshot: snapshot, now: now, language: language)
         }
         .padding(.vertical, verticalExpansion * 0.3)
     }
@@ -840,29 +832,20 @@ struct UsagePaceLine: View {
     let snapshot: ProviderUsageSnapshot
     let now: Date
     let language: AppLanguage
-    var persistentSessionStatus = true
 
     @ViewBuilder
     var body: some View {
-        let estimate = snapshot.session.usedPercent != nil
-            ? snapshot.sessionPaceEstimate(at: now)
-            : snapshot.paceEstimate(at: now)
+        let sessionStatus = snapshot.sessionPaceStatus(at: now)
         let weeklyRisk = snapshot.weeklyRisk(at: now)
-        if persistentSessionStatus && weeklyRisk == nil && snapshot.session.usedPercent != nil {
-            Text(persistentText(estimate))
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(persistentColor(estimate))
-                .monospacedDigit()
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(minHeight: 14, alignment: .leading)
-        } else {
+        if sessionStatus != nil || weeklyRisk != nil {
             VStack(alignment: .leading, spacing: 5) {
-                if let text = sessionPaceText(estimate, hasWeeklyRisk: weeklyRisk != nil) {
-                    Text(text)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(sessionPaceColor(estimate))
+                if let sessionStatus {
+                    Text(language.sessionPaceText(sessionStatus))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(sessionPaceColor(sessionStatus))
                         .monospacedDigit()
                         .fixedSize(horizontal: false, vertical: true)
+                        .frame(minHeight: 14, alignment: .leading)
                 }
                 if let weeklyRisk {
                     WeeklyRiskLine(
@@ -875,63 +858,10 @@ struct UsagePaceLine: View {
         }
     }
 
-    private func sessionPaceText(_ estimate: PaceEstimate?, hasWeeklyRisk: Bool) -> String? {
-        switch estimate {
-        case .limitIn(_, quota: .session): language.paceText(estimate)
-        case .limitIn(_, quota: .weekly) where !hasWeeklyRisk && snapshot.session.usedPercent == nil:
-            language.paceText(estimate)
-        case .onTrackToReset where !hasWeeklyRisk && snapshot.session.usedPercent != nil:
-            language.paceText(estimate)
-        default: nil
-        }
-    }
-
-    private func sessionPaceColor(_ estimate: PaceEstimate?) -> Color {
-        if case .limitIn = estimate { return UsageTheme.amber }
-        return UsageTheme.mutedText
-    }
-
-    private func persistentText(_ estimate: PaceEstimate?) -> String {
-        switch estimate {
-        case .limitIn(let duration, let quota):
-            let scope = quota == .weekly
-                ? language.text("weekly limit", "límite semanal")
-                : language.text("this session", "esta sesión")
-            return language.text(
-                "Not on track for \(scope) · limit in \(UsagePaceFormatter.string(duration: duration))",
-                "Ritmo alto para \(scope) · límite en \(UsagePaceFormatter.string(duration: duration))"
-            )
-        case .onTrackToReset:
-            return language.text("On track for this session", "Buen ritmo para esta sesión")
-        case .insufficientData:
-            return measuringSessionText
-        case nil:
-            return snapshot.source == .mock
-                ? measuringSessionText
-                : language.text("Session pace unavailable", "Ritmo de sesión no disponible")
-        }
-    }
-
-    private var measuringSessionText: String {
-        if let reset = snapshot.session.resetsAt,
-           let duration = snapshot.session.durationSeconds,
-           (0..<900).contains(now.timeIntervalSince(reset.addingTimeInterval(-duration))) {
-            return language.text(
-                "New session · measuring pace",
-                "Sesión nueva · calculando ritmo"
-            )
-        }
-        return language.text(
-            "Measuring this session's pace",
-            "Calculando el ritmo de esta sesión"
-        )
-    }
-
-    private func persistentColor(_ estimate: PaceEstimate?) -> Color {
-        switch estimate {
+    private func sessionPaceColor(_ status: SessionPaceStatus) -> Color {
+        switch status {
         case .limitIn: UsageTheme.amber
-        case .onTrackToReset: UsageTheme.mutedText
-        case .insufficientData, nil: UsageTheme.mutedText
+        case .noUsage, .newSession, .measuring, .unavailable, .onTrack: UsageTheme.mutedText
         }
     }
 

@@ -25,8 +25,7 @@ struct IOSDashboardView: View {
                             now: now,
                             history: store.history,
                             language: language,
-                            verticalExpansion: verticalExpansion(for: proxy.size.height),
-                            persistentPace: true
+                            verticalExpansion: verticalExpansion(for: proxy.size.height)
                         )
                         .padding(.top, 18)
 

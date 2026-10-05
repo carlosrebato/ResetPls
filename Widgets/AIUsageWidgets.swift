@@ -723,7 +723,7 @@ private struct UsageWidgetView: View {
             return language.text("UPDATE FAILED · OPEN APP", "FALLO AL ACTUALIZAR · ABRE LA APP")
         }
         if let risk = snapshot.weeklyRisk(at: entry.date) { return language.weeklyRiskText(risk) }
-        return language.paceText(snapshot.paceEstimate(at: entry.date))
+        return snapshot.sessionPaceStatus(at: entry.date).map(language.sessionPaceText)
     }
 
     private func statusColor(_ snapshot: ProviderUsageSnapshot) -> Color {
@@ -735,7 +735,9 @@ private struct UsageWidgetView: View {
             case .highRisk: return UsageTheme.red
             }
         }
-        if case .limitIn = snapshot.paceEstimate(at: entry.date) { return UsageTheme.amber }
+        if let status = snapshot.sessionPaceStatus(at: entry.date), case .limitIn = status {
+            return UsageTheme.amber
+        }
         return UsageTheme.mutedText
     }
 

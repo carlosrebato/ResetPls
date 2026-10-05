@@ -211,8 +211,8 @@ private enum WidgetWeeklyProjection {
 
     var english: String {
         switch self {
-        case .roomToSpare: "Weekly limit: room to spare"
-        case .littleRoomToSpare: "Weekly limit: little room to spare"
+        case .roomToSpare: "At this pace, you should stay comfortably within your weekly limit"
+        case .littleRoomToSpare: "At this pace, you could come close to your weekly limit"
         case .risk: "Risk of reaching the weekly limit"
         case .highRisk: "High risk of reaching the weekly limit"
         }
@@ -220,8 +220,8 @@ private enum WidgetWeeklyProjection {
 
     var spanish: String {
         switch self {
-        case .roomToSpare: "Límite semanal: con margen"
-        case .littleRoomToSpare: "Límite semanal: vas justo"
+        case .roomToSpare: "A este ritmo, llegarías al reinicio semanal con margen"
+        case .littleRoomToSpare: "A este ritmo, podrías acercarte al límite semanal"
         case .risk: "Riesgo de alcanzar el límite semanal"
         case .highRisk: "Riesgo alto de alcanzar el límite semanal"
         }
