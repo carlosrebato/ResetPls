@@ -78,7 +78,7 @@ public struct UsagePaceHistory: Equatable, Codable, Sendable {
         if let last = samples.last {
             guard date > last.timestamp else { return }
             // A decrease also starts a new series when the provider keeps the same reset date.
-            if last.reset != reset || percent < last.percent {
+            if !Self.sameWindow(last.reset, reset) || percent < last.percent {
                 samples.removeAll()
             } else if date.timeIntervalSince(last.timestamp) < 30 {
                 return
@@ -89,69 +89,6 @@ public struct UsagePaceHistory: Equatable, Codable, Sendable {
         samples = Array(samples.suffix(121))
     }
 
-    public static func estimate(
-        window: UsageWindow, samples: [Sample], now: Date
-    ) -> PaceEstimate {
-        guard !window.isExhausted,
-              let percent = window.usedPercent, percent.isFinite, (0..<100).contains(percent),
-              let reset = window.resetsAt, reset > now else { return .insufficientData }
-        let recent = samples.filter {
-            $0.percent.isFinite && (0...100).contains($0.percent)
-                && $0.reset == reset && $0.timestamp <= now
-                && now.timeIntervalSince($0.timestamp) <= 3_600
-        }
-        guard recent.count >= 3, let first = recent.first, let last = recent.last,
-              now.timeIntervalSince(last.timestamp) <= 600,
-              last.percent == percent,
-              last.timestamp.timeIntervalSince(first.timestamp) >= 600 else {
-            return .insufficientData
-        }
-        let pairs = zip(recent, recent.dropFirst())
-        guard pairs.allSatisfy({ $1.timestamp > $0.timestamp && $1.percent >= $0.percent }) else {
-            return .insufficientData
-        }
-        let change = last.percent - first.percent
-        if change <= 0.01 { return .onTrackToReset }
-        // One isolated provider jump is not enough evidence of sustained consumption.
-        guard change >= 1,
-              pairs.filter({ $1.percent > $0.percent }).count >= 2 else {
-            return .insufficientData
-        }
-        let count = Double(recent.count)
-        let times = recent.map { $0.timestamp.timeIntervalSince(first.timestamp) }
-        let meanTime = times.reduce(0, +) / count
-        let meanPercent = recent.map(\.percent).reduce(0, +) / count
-        let variance = times.reduce(0) { $0 + pow($1 - meanTime, 2) }
-        let covariance = zip(times, recent).reduce(0) {
-            $0 + ($1.0 - meanTime) * ($1.1.percent - meanPercent)
-        }
-        let rate = max(0, covariance / variance)
-        guard rate.isFinite, rate > 0.000_001 else { return .onTrackToReset }
-        let duration = (100 - percent) / rate
-        guard duration.isFinite, duration > 0 else { return .insufficientData }
-        return duration < reset.timeIntervalSince(now) ? .limitIn(duration) : .onTrackToReset
-    }
-
-    /// A decisive session-wide average can still identify an early limit when
-    /// sparse polling or a single large jump prevents the rolling fit. It is
-    /// deliberately one-sided: weak evidence never claims the session is safe.
-    public static func decisiveSessionFallback(window: UsageWindow, now: Date) -> PaceEstimate? {
-        guard let percent = window.usedPercent, percent.isFinite, (20..<100).contains(percent),
-              let reset = window.resetsAt, reset > now,
-              let duration = window.durationSeconds, duration.isFinite, duration > 0 else {
-            return nil
-        }
-        let elapsed = now.timeIntervalSince(reset.addingTimeInterval(-duration))
-        guard elapsed.isFinite, elapsed > 0, elapsed < duration else { return nil }
-
-        let minimumElapsed = min(15 * 60, duration * 0.1)
-        guard elapsed >= minimumElapsed || percent >= 70 else { return nil }
-        let effectiveElapsed = max(elapsed, minimumElapsed)
-        let eta = effectiveElapsed * (100 - percent) / percent
-        let remaining = reset.timeIntervalSince(now)
-        guard eta.isFinite, eta > 0, eta < remaining * 0.8 else { return nil }
-        return .limitIn(eta)
-    }
 }
 
 extension ProviderUsageSnapshot {
@@ -176,13 +113,13 @@ extension ProviderUsageSnapshot {
     /// Only evaluate a verified, current weekly-only primary quota. A short burst
     /// of activity must not be extrapolated into an all-week risk score.
     public func weeklyRisk(at now: Date) -> WeeklyRiskAssessment? {
-        guard primaryDisplayWindow == weekly, source == .live, !isStale(at: now),
+        guard primaryQuotaID == .weekly, source == .live, !isStale(at: now),
               weekly.isVerifiedWeekly,
               let used = weekly.usedPercent, used.isFinite, (0..<100).contains(used),
               let reset = weekly.resetsAt, reset > now,
               let duration = weekly.durationSeconds else { return nil }
         let start = reset.addingTimeInterval(-duration)
-        let elapsed = now.timeIntervalSince(start)
+        let elapsed = observedAt.timeIntervalSince(start)
         guard elapsed >= 0, elapsed < duration else { return nil }
 
         // Weekly usage has a human day/night cadence. During day one, compare
@@ -200,7 +137,7 @@ extension ProviderUsageSnapshot {
             state = .onTrack
         } else if projected <= 125 {
             state = .atRisk
-        } else if elapsed >= 48 * 60 * 60, hasConfirmedWeeklyReadings(reset: reset, used: used) {
+        } else if elapsed >= 48 * 60 * 60 {
             state = .highRisk
         } else {
             state = .atRisk
@@ -210,20 +147,6 @@ extension ProviderUsageSnapshot {
             elapsedPercent: elapsed / duration * 100,
             projectedPercent: projected
         )
-    }
-
-    private func hasConfirmedWeeklyReadings(reset: Date, used: Double) -> Bool {
-        guard let samples = paceHistory?.weekly else { return false }
-        let recent = samples.filter {
-            $0.reset == reset && $0.timestamp <= observedAt
-                && observedAt.timeIntervalSince($0.timestamp) <= 3_600
-        }
-        guard recent.count >= 2, let first = recent.first, let last = recent.last,
-              observedAt.timeIntervalSince(first.timestamp) >= 30 * 60,
-              last.percent == used else { return false }
-        return zip(recent, recent.dropFirst()).allSatisfy {
-            $0.timestamp < $1.timestamp && $0.percent <= $1.percent
-        }
     }
 
     public var availability: UsageAvailability {
@@ -242,31 +165,28 @@ extension ProviderUsageSnapshot {
     }
 
     public var displaysWeeklyReset: Bool {
-        availability == .available && primaryDisplayWindow == weekly
+        availability == .available && primaryQuotaID == .weekly
             && weekly.isVerifiedWeekly && weekly.resetsAt != nil
     }
 
-    /// nil means Pace is suppressed (blocked, cached, unavailable, or stale).
+    /// Compatibility entry point for the primary quota's shared assessment.
+    /// It must never run a competing estimator or silently switch quota.
     public func paceEstimate(at now: Date) -> PaceEstimate? {
         guard availability == .available, source == .live, !isStale(at: now) else { return nil }
-        let history = paceHistory ?? UsagePaceHistory()
-        let windows: [(UsageQuotaID, UsageWindow, [UsagePaceHistory.Sample])] = [
-            (.session, session, history.session), (.weekly, weekly, history.weekly)
-        ]
-        let estimates = windows.filter { $0.1.usedPercent != nil }.map { quota, window, samples in
-            let estimate = UsagePaceHistory.estimate(window: window, samples: samples, now: now)
-            if case .limitIn(let duration, _) = estimate {
-                return PaceEstimate.limitIn(duration, quota: quota)
+        if primaryQuotaID == .weekly {
+            guard let assessment = weeklyRisk(at: now) else { return .insufficientData }
+            switch assessment.state {
+            case .roomToSpare, .onTrack: return .onTrackToReset
+            case .atRisk, .highRisk:
+                guard let duration = weekly.durationSeconds, let reset = weekly.resetsAt,
+                      assessment.usedPercent > 0 else { return .insufficientData }
+                let elapsed = max(observedAt.timeIntervalSince(reset.addingTimeInterval(-duration)), 86_400)
+                let eta = elapsed * (100 - assessment.usedPercent) / assessment.usedPercent
+                let deadline = observedAt.addingTimeInterval(eta)
+                return .limitIn(max(60, deadline.timeIntervalSince(now)), quota: .weekly)
             }
-            return estimate
         }
-        let predicted = estimates.compactMap { estimate -> (TimeInterval, PaceEstimate)? in
-            if case .limitIn(let duration, _) = estimate { return (duration, estimate) }
-            return nil
-        }
-        if let first = predicted.min(by: { $0.0 < $1.0 }) { return first.1 }
-        return !estimates.isEmpty && estimates.allSatisfy { $0 == .onTrackToReset }
-            ? .onTrackToReset : .insufficientData
+        return sessionPaceEstimate(at: now)
     }
 
     /// Presentation for services that expose a five-hour session. The global
@@ -275,43 +195,15 @@ extension ProviderUsageSnapshot {
     public func sessionPaceEstimate(at now: Date) -> PaceEstimate? {
         guard availability == .available, source == .live, !isStale(at: now),
               session.usedPercent != nil else { return nil }
-        let estimate = UsagePaceHistory.estimate(
-            window: session, samples: paceHistory?.session ?? [], now: now
-        )
-        if case .limitIn(let duration, _) = estimate {
-            return .limitIn(duration, quota: .session)
+        switch sessionPaceAssessment(at: now)?.status {
+        case .limitIn(let duration): return .limitIn(duration, quota: .session)
+        case .onTrack, .noUsage: return .onTrackToReset
+        case .newSession, .measuring, .unavailable, nil: return .insufficientData
         }
-        if estimate == .insufficientData,
-           case .limitIn(let duration, _)? = UsagePaceHistory.decisiveSessionFallback(
-               window: session, now: now
-           ) {
-            return .limitIn(duration, quota: .session)
-        }
-        return estimate
     }
 
     public func sessionPaceStatus(at now: Date) -> SessionPaceStatus? {
-        guard let percent = session.usedPercent, percent.isFinite,
-              (0...100).contains(percent), availability == .available else { return nil }
-        if source == .mock { return .measuring }
-        guard source == .live, !isStale(at: now) else { return .unavailable }
-        // Percentages are displayed as whole numbers, so use the same boundary.
-        if percent < 0.5 { return .noUsage }
-        guard let reset = session.resetsAt, reset > now else { return .unavailable }
-
-        switch sessionPaceEstimate(at: now) {
-        case .limitIn(let duration, _): return .limitIn(duration)
-        case .onTrackToReset: return .onTrack
-        case .insufficientData:
-            if let duration = session.durationSeconds, duration.isFinite, duration > 0,
-               (0..<15 * 60).contains(now.timeIntervalSince(
-                   reset.addingTimeInterval(-duration)
-               )) {
-                return .newSession
-            }
-            return .measuring
-        case nil: return .unavailable
-        }
+        sessionPaceAssessment(at: now)?.status
     }
 
     public func recordingPace(previous: ProviderUsageSnapshot?) -> ProviderUsageSnapshot {

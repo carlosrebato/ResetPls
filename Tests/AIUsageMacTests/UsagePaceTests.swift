@@ -37,14 +37,14 @@ struct UsagePaceTests {
 
     @Test func firstMinutesAndTinyReadingsDoNotProduceFalsePaceWarnings() {
         let tiny = fiveHourSession(used: 2, elapsedMinutes: 2)
-        #expect(tiny.sessionPaceStatus(at: tiny.observedAt) == .newSession)
+        #expect(tiny.sessionPaceStatus(at: tiny.observedAt) == .onTrack)
         #expect(tiny.signal(at: tiny.observedAt) == .normal)
         let early = fiveHourSession(used: 25, elapsedMinutes: 5)
-        #expect(early.sessionPaceStatus(at: early.observedAt) == .newSession)
+        #expect(early.sessionPaceStatus(at: early.observedAt) == .limitIn(2_700))
         let zero = fiveHourSession(used: 0, elapsedMinutes: 1)
         #expect(zero.sessionPaceStatus(at: zero.observedAt) == .noUsage)
         let nearReset = fiveHourSession(used: 80, elapsedMinutes: 290)
-        #expect(nearReset.sessionPaceStatus(at: nearReset.observedAt) == .measuring)
+        #expect(nearReset.sessionPaceStatus(at: nearReset.observedAt) == .onTrack)
     }
 
     @Test func approvedSessionAndWeeklyCopyIsBilingual() {
@@ -144,7 +144,7 @@ struct UsagePaceTests {
             (12, 20, 140, .atRisk),
             (24, 15, 105, .onTrack),
             (48, 30, 105, .onTrack),
-            (48, 40, 140, .atRisk) // Red still requires confirmed readings.
+            (48, 40, 140, .highRisk)
         ]
         for scenario in scenarios {
             let reading = weeklyOnly(used: scenario.used, elapsedDays: scenario.hours / 24)
@@ -152,7 +152,7 @@ struct UsagePaceTests {
             #expect(abs(assessment.projectedPercent - scenario.projected) < 0.001)
             #expect(assessment.state == scenario.state)
             #expect(reading.signal(at: reading.observedAt) == (
-                scenario.state == .atRisk ? .warning : .normal
+                scenario.state == .highRisk ? .critical : scenario.state == .atRisk ? .warning : .normal
             ))
         }
     }
@@ -165,11 +165,8 @@ struct UsagePaceTests {
                 .recordingPace(previous: previous)
         }
         let burst = try #require(previous)
-        if case .limitIn = burst.paceEstimate(at: burst.observedAt) {
-            #expect(burst.signal(at: burst.observedAt) == .normal)
-        } else {
-            Issue.record("Expected a short-term weekly pace alert to test the semaphore override")
-        }
+        #expect(burst.paceEstimate(at: burst.observedAt) == .onTrackToReset)
+        #expect(burst.signal(at: burst.observedAt) == .normal)
     }
 
     @Test func providerSignalUsesBothQuotasAndDoesNotMistakeMissingDataForAWarning() {
@@ -215,7 +212,8 @@ struct UsagePaceTests {
 
     @Test func flatIntervalsContributeToTheRegression() {
         let reading = series(session: [30, 35, 35, 40])
-        #expect(reading.paceEstimate(at: reading.observedAt) == .limitIn(6_000, quota: .session))
+        #expect(reading.paceEstimate(at: reading.observedAt) == .onTrackToReset)
+        #expect(reading.sessionPaceAssessment(at: reading.observedAt)?.projectedPercentAtReset == 103)
     }
 
     @Test func providerHistoriesAreKeptSeparate() {
@@ -247,7 +245,8 @@ struct UsagePaceTests {
     @Test func insufficientEvidenceKeepsExistingCopyAndHidesPace() {
         let single = snapshot(session: 60).recordingPace(previous: nil)
         #expect(single.paceEstimate(at: start) == .insufficientData)
-        #expect(single.sessionPaceStatus(at: start) == .measuring)
+        #expect(single.sessionPaceStatus(at: start) == .unavailable)
+        #expect(single.sessionPaceAssessment(at: start)?.reason == .insufficientHistory)
         #expect(AppLanguage.english.resetLabel(for: single) == "RESETS")
         #expect(AppLanguage.english.resetText(for: single, now: start) == "Resets in 2h 0m")
         let tooShort = snapshot(session: 70, seconds: 60).recordingPace(previous: single)
@@ -280,20 +279,20 @@ struct UsagePaceTests {
         #expect(duration.isFinite && duration > 0)
     }
 
-    @Test func eachQuotaIsEstimatedIndependentlyAndEarliestWins() {
+    @Test func primaryEstimateDoesNotSilentlySwitchToTheSecondaryQuota() {
         let sessionFirst = series(session: [60, 65, 70], weekly: [30, 31, 32])
         #expect(sessionFirst.paceEstimate(at: sessionFirst.observedAt) == .limitIn(1_800, quota: .session))
         let weeklyFirst = series(session: [30, 31, 32], weekly: [60, 65, 70])
-        #expect(weeklyFirst.paceEstimate(at: weeklyFirst.observedAt) == .limitIn(1_800, quota: .weekly))
+        #expect(weeklyFirst.paceEstimate(at: weeklyFirst.observedAt) == .onTrackToReset)
         #expect(weeklyFirst.sessionPaceEstimate(at: weeklyFirst.observedAt) == .onTrackToReset)
         let neither = series(session: [10, 11, 12], weekly: [10, 11, 12],
                              sessionReset: 1_200, weeklyReset: 1_200)
         #expect(neither.paceEstimate(at: neither.observedAt) == .onTrackToReset)
     }
 
-    @Test func missingEvidenceDoesNotClaimBothQuotasAreOnTrack() {
+    @Test func sessionCopyOnlyAssessesTheSession() {
         let reading = series(session: [30, 30, 30], weekly: [30, 30.2, 30.4])
-        #expect(reading.paceEstimate(at: reading.observedAt) == .insufficientData)
+        #expect(reading.paceEstimate(at: reading.observedAt) == .onTrackToReset)
     }
 
     @Test func exhaustedQuotasSuppressPaceAndDetermineAvailability() {

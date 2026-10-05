@@ -188,11 +188,15 @@ public struct ProviderUsageSnapshot: Identifiable, Equatable, Codable, Sendable 
         [session.usedPercent, weekly.usedPercent].compactMap { $0 }.max()
     }
 
-    public var primaryDisplayWindow: UsageWindow {
+    public var primaryQuotaID: UsageQuotaID {
         if id == .codex, session.usedPercent == nil, weekly.usedPercent != nil {
-            return weekly
+            return .weekly
         }
-        return session
+        return .session
+    }
+
+    public var primaryDisplayWindow: UsageWindow {
+        primaryQuotaID == .weekly ? weekly : session
     }
 
     public var severity: UsageSeverity {
