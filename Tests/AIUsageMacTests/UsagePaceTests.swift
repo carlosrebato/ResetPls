@@ -6,6 +6,71 @@ struct UsagePaceTests {
     private let start = Date(timeIntervalSince1970: 10_000)
     private let week: TimeInterval = 7 * 24 * 60 * 60
 
+    private func fiveHourSession(used: Double, elapsedMinutes: Double) -> ProviderUsageSnapshot {
+        let duration: TimeInterval = 5 * 3_600
+        let observed = start.addingTimeInterval(elapsedMinutes * 60)
+        return ProviderUsageSnapshot(
+            id: .claude,
+            session: UsageWindow(
+                usedPercent: used,
+                resetsAt: start.addingTimeInterval(duration),
+                durationSeconds: duration
+            ),
+            weekly: UsageWindow(usedPercent: nil, resetsAt: nil),
+            observedAt: observed,
+            source: .live,
+            message: nil
+        ).recordingPace(previous: nil)
+    }
+
+    @Test func substantialSessionUsageGetsAPaceEvenWithSparseReadings() {
+        let reading = fiveHourSession(used: 87, elapsedMinutes: 64)
+        guard case .limitIn(let eta)? = reading.sessionPaceStatus(at: reading.observedAt) else {
+            Issue.record("87% after an hour must not remain measuring")
+            return
+        }
+        #expect(eta > 9 * 60 && eta < 11 * 60)
+        #expect(reading.signal(at: reading.observedAt) == .critical)
+        #expect(AppLanguage.english.sessionPaceText(.limitIn(eta)) ==
+            "At this pace, you could hit the session limit in ~10m")
+    }
+
+    @Test func firstMinutesAndTinyReadingsDoNotProduceFalsePaceWarnings() {
+        let tiny = fiveHourSession(used: 2, elapsedMinutes: 2)
+        #expect(tiny.sessionPaceStatus(at: tiny.observedAt) == .newSession)
+        #expect(tiny.signal(at: tiny.observedAt) == .normal)
+        let early = fiveHourSession(used: 25, elapsedMinutes: 5)
+        #expect(early.sessionPaceStatus(at: early.observedAt) == .newSession)
+        let zero = fiveHourSession(used: 0, elapsedMinutes: 1)
+        #expect(zero.sessionPaceStatus(at: zero.observedAt) == .noUsage)
+        let nearReset = fiveHourSession(used: 80, elapsedMinutes: 290)
+        #expect(nearReset.sessionPaceStatus(at: nearReset.observedAt) == .measuring)
+    }
+
+    @Test func approvedSessionAndWeeklyCopyIsBilingual() {
+        #expect(AppLanguage.english.sessionPaceText(.noUsage) == "No session usage reported yet")
+        #expect(AppLanguage.spanish.sessionPaceText(.noUsage) == "Aún no hay uso registrado en esta sesión")
+        #expect(AppLanguage.english.sessionPaceText(.newSession) == "New session · measuring pace")
+        #expect(AppLanguage.spanish.sessionPaceText(.newSession) == "Sesión nueva · calculando ritmo")
+        #expect(AppLanguage.english.sessionPaceText(.measuring) == "Measuring this session's pace")
+        #expect(AppLanguage.spanish.sessionPaceText(.measuring) == "Calculando el ritmo de esta sesión")
+        #expect(AppLanguage.english.sessionPaceText(.unavailable) == "Session pace unavailable")
+        #expect(AppLanguage.spanish.sessionPaceText(.unavailable) == "Ritmo de sesión no disponible")
+        #expect(AppLanguage.english.sessionPaceText(.onTrack) == "At this pace, you should make it to the session reset")
+        #expect(AppLanguage.spanish.sessionPaceText(.onTrack) == "A este ritmo, llegarías al reinicio de sesión")
+        #expect(AppLanguage.spanish.sessionPaceText(.limitIn(600)) == "A este ritmo, podrías agotar la sesión en ~10m")
+        for (state, english, spanish) in [
+            (WeeklyRiskState.roomToSpare, "At this pace, you should stay comfortably within your weekly limit", "A este ritmo, llegarías al reinicio semanal con margen"),
+            (.onTrack, "At this pace, you could come close to your weekly limit", "A este ritmo, podrías acercarte al límite semanal"),
+            (.atRisk, "Risk of reaching the weekly limit", "Riesgo de alcanzar el límite semanal"),
+            (.highRisk, "High risk of reaching the weekly limit", "Riesgo alto de alcanzar el límite semanal")
+        ] {
+            let assessment = WeeklyRiskAssessment(state: state, usedPercent: 25, elapsedPercent: 25, projectedPercent: 100)
+            #expect(AppLanguage.english.weeklyRiskText(assessment) == english)
+            #expect(AppLanguage.spanish.weeklyRiskText(assessment) == spanish)
+        }
+    }
+
     private func weeklyOnly(
         used: Double, elapsedDays: Double, source: UsageSource = .live,
         duration: TimeInterval? = 7 * 24 * 60 * 60
@@ -29,7 +94,7 @@ struct UsagePaceTests {
         let assessment = try #require(reading.weeklyRisk(at: reading.observedAt))
         #expect(assessment.state == .onTrack)
         #expect(abs(assessment.projectedPercent - 87.5) < 0.001)
-        #expect(AppLanguage.spanish.weeklyRiskText(assessment) == "Límite semanal: vas justo")
+        #expect(AppLanguage.spanish.weeklyRiskText(assessment) == "A este ritmo, podrías acercarte al límite semanal")
         #expect(AppLanguage.spanish.resetLabel(for: reading) == "RESETEO SEM.")
         #expect(reading.signal(at: reading.observedAt) == .normal)
     }
@@ -60,9 +125,9 @@ struct UsagePaceTests {
         #expect(abs(assessment.projectedPercent - 9.8) < 0.001)
         #expect(tiny.signal(at: tiny.observedAt) == .normal)
         #expect(AppLanguage.english.weeklyRiskHelp(assessment) ==
-            "You've used 1% of your weekly limit. This early weekly pace estimate may change as you use the service.")
+            "You've used 1% of your weekly limit. This early estimate may change as you use the service.")
         #expect(AppLanguage.spanish.weeklyRiskHelp(assessment) ==
-            "Has usado el 1 % de tu límite semanal. Esta estimación inicial del ritmo semanal puede cambiar según tu uso.")
+            "Has usado el 1 % de tu límite semanal. Esta estimación inicial puede cambiar según tu uso.")
 
         let meaningful = weeklyOnly(used: 18, elapsedDays: fiveMinutes)
         #expect(meaningful.weeklyRisk(at: meaningful.observedAt)?.state == .atRisk)
@@ -182,7 +247,7 @@ struct UsagePaceTests {
     @Test func insufficientEvidenceKeepsExistingCopyAndHidesPace() {
         let single = snapshot(session: 60).recordingPace(previous: nil)
         #expect(single.paceEstimate(at: start) == .insufficientData)
-        #expect(AppLanguage.english.paceText(single.paceEstimate(at: start)) == nil)
+        #expect(single.sessionPaceStatus(at: start) == .measuring)
         #expect(AppLanguage.english.resetLabel(for: single) == "RESETS")
         #expect(AppLanguage.english.resetText(for: single, now: start) == "Resets in 2h 0m")
         let tooShort = snapshot(session: 70, seconds: 60).recordingPace(previous: single)
