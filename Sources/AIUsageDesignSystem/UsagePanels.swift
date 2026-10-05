@@ -273,10 +273,24 @@ public struct UsageDetailedMetrics: View {
     }
 
     private func metric(label: String, value: String, color: Color? = nil) -> some View {
-        HStack(spacing: 5) {
+        UsageMetricValue(label: label, value: value, color: color)
+    }
+
+}
+
+/// Reset and token metadata share one typographic treatment on Mac and iOS.
+/// Close sizes, tight tracking and a shared baseline make label + value read
+/// as one phrase while preserving emphasis on the value.
+private struct UsageMetricValue: View {
+    let label: String
+    let value: String
+    var color: Color? = nil
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(label)
-                .font(.system(size: 9, weight: .semibold))
-                .tracking(1.1)
+                .font(.system(size: 11, weight: .medium))
+                .tracking(0.15)
                 .foregroundStyle(color ?? UsageTheme.mutedText)
             Text(value)
                 .font(.system(size: 12, weight: .semibold))
@@ -286,7 +300,6 @@ public struct UsageDetailedMetrics: View {
         .lineLimit(1)
         .fixedSize(horizontal: true, vertical: false)
     }
-
 }
 
 private struct TokenDetailMetric: View {
@@ -297,18 +310,7 @@ private struct TokenDetailMetric: View {
     @State private var showsDetails = false
 
     private var metric: some View {
-        HStack(spacing: 5) {
-            Text(label)
-                .font(.system(size: 9, weight: .semibold))
-                .tracking(1.1)
-                .foregroundStyle(UsageTheme.mutedText)
-            Text(value)
-                .font(.system(size: 12, weight: .semibold))
-                .monospacedDigit()
-                .foregroundStyle(UsageTheme.metaText)
-        }
-        .lineLimit(1)
-        .fixedSize(horizontal: true, vertical: false)
+        UsageMetricValue(label: label, value: value)
     }
 
     @ViewBuilder
