@@ -61,6 +61,14 @@ public enum PaceNotice: Equatable, Sendable {
 /// Per-provider quota samples, carried by the existing last-known snapshot cache.
 /// No credentials, extra polling, database, or additional disk writes are needed.
 public struct UsagePaceHistory: Equatable, Codable, Sendable {
+    /// Persist the conclusion, not its countdown. The ETA is recomputed from
+    /// each valid reading. Optional for compatibility with existing caches.
+    public struct SessionConclusion: Equatable, Codable, Sendable {
+        public let reset: Date
+        public let observedAt: Date
+        public let atRisk: Bool
+    }
+
     public struct Sample: Equatable, Codable, Sendable {
         public let timestamp: Date
         public let percent: Double
@@ -69,13 +77,35 @@ public struct UsagePaceHistory: Equatable, Codable, Sendable {
 
     public private(set) var session: [Sample] = []
     public private(set) var weekly: [Sample] = []
+    public private(set) var sessionConclusion: SessionConclusion?
 
     public init() {}
 
     public mutating func record(_ snapshot: ProviderUsageSnapshot) {
         guard snapshot.source == .live else { return }
+        if let last = session.last, let percent = snapshot.session.usedPercent,
+           percent.isFinite, (0...100).contains(percent),
+           let reset = snapshot.session.resetsAt, reset.timeIntervalSince1970.isFinite,
+           snapshot.observedAt.timeIntervalSince1970.isFinite, reset > snapshot.observedAt,
+           snapshot.observedAt > last.timestamp,
+           !Self.sameWindow(last.reset, reset) || percent < last.percent {
+            sessionConclusion = nil
+        }
         Self.record(snapshot.session, at: snapshot.observedAt, into: &session)
         Self.record(snapshot.weekly, at: snapshot.observedAt, into: &weekly)
+    }
+
+    mutating func recordConclusion(_ snapshot: ProviderUsageSnapshot) {
+        guard snapshot.source == .live, let reset = snapshot.session.resetsAt,
+              snapshot.observedAt >= (sessionConclusion?.observedAt ?? .distantPast),
+              let status = snapshot.sessionPaceAssessment(at: snapshot.observedAt)?.status else { return }
+        let atRisk: Bool
+        switch status {
+        case .onTrack: atRisk = false
+        case .limitIn: atRisk = true
+        default: return
+        }
+        sessionConclusion = SessionConclusion(reset: reset, observedAt: snapshot.observedAt, atRisk: atRisk)
     }
 
     private static func record(_ window: UsageWindow, at date: Date, into samples: inout [Sample]) {
@@ -233,6 +263,11 @@ extension ProviderUsageSnapshot {
     public func recordingPace(previous: ProviderUsageSnapshot?) -> ProviderUsageSnapshot {
         var history = (previous?.id == id ? previous?.paceHistory : nil) ?? UsagePaceHistory()
         history.record(self)
+        let candidate = ProviderUsageSnapshot(
+            id: id, session: session, weekly: weekly, observedAt: observedAt,
+            source: source, message: message, weeklyTotals: weeklyTotals, paceHistory: history
+        )
+        history.recordConclusion(candidate)
         return ProviderUsageSnapshot(
             id: id, session: session, weekly: weekly, observedAt: observedAt,
             source: source, message: message, weeklyTotals: weeklyTotals, paceHistory: history
@@ -241,9 +276,9 @@ extension ProviderUsageSnapshot {
 }
 
 public enum UsagePaceFormatter {
-    public static func string(duration: TimeInterval) -> String {
+    public static func string(duration: TimeInterval, minutePrecision: Bool = false) -> String {
         guard duration.isFinite, duration > 0 else { return "~1m" }
-        let step: Double = duration < 3_600 ? 120 : duration < 6 * 3_600 ? 600
+        let step: Double = duration < 3_600 ? (minutePrecision ? 60 : 120) : duration < 6 * 3_600 ? 600
             : duration < 24 * 3_600 ? 3_600 : 6 * 3_600
         let rounded = max(60, (duration / step).rounded() * step)
         return "~" + UsageResetFormatter.string(
@@ -315,8 +350,8 @@ extension AppLanguage {
             )
         case .limitIn(let duration):
             text(
-                "At this pace, you could hit the session limit in \(UsagePaceFormatter.string(duration: duration))",
-                "A este ritmo, podrías agotar la sesión en \(UsagePaceFormatter.string(duration: duration))"
+                "At this pace, you could hit the session limit in \(UsagePaceFormatter.string(duration: duration, minutePrecision: true))",
+                "A este ritmo, podrías agotar la sesión en \(UsagePaceFormatter.string(duration: duration, minutePrecision: true))"
             )
         }
     }

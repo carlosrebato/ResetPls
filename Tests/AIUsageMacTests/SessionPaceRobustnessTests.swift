@@ -21,13 +21,13 @@ struct SessionPaceRobustnessTests {
         ).recordingPace(previous: previous)
     }
 
-    @Test func oneValidReadingAlwaysEstimatesWithoutInventingMoreEvidence() throws {
+    @Test func oneValidReadingAlwaysCalculatesButDoesNotAlwaysConclude() throws {
         for minute in [0.0, 0.1, 2, 15, 64, 240, 299] {
             for percent in [0.4, 2, 19.9, 20, 60, 69, 70, 87, 99.9] {
                 let reading = session(percent, minute: minute)
                 let assessment = try #require(reading.sessionPaceAssessment(at: reading.observedAt))
-                #expect(assessment.reason == .estimated)
-                #expect(assessment.status != .measuring && assessment.status != .newSession)
+                #expect([SessionPaceReason.estimated, .initialObservation, .ambiguousProjection].contains(assessment.reason))
+                #expect(assessment.ratePercentPerSecond?.isFinite == true)
                 #expect(assessment.projectedPercentAtReset?.isFinite == true)
                 #expect(reading.paceEstimate(at: reading.observedAt) == reading.sessionPaceEstimate(at: reading.observedAt))
             }
@@ -44,7 +44,7 @@ struct SessionPaceRobustnessTests {
             }
         }
         let fractional = session(0.4, minute: 10)
-        #expect(fractional.sessionPaceStatus(at: fractional.observedAt) == .onTrack)
+        #expect(fractional.sessionPaceStatus(at: fractional.observedAt) == .newSession)
         let zero = session(0, minute: 10, hasReset: false)
         #expect(zero.sessionPaceStatus(at: zero.observedAt) == .noUsage)
     }

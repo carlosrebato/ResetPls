@@ -5,6 +5,32 @@ import XCTest
 
 @MainActor
 final class IOSUsageStoreTests: XCTestCase {
+    func testRestartPreservesSessionConclusionAtTheBoundary() async throws {
+        let fixture = try Fixture()
+        let now = Date.now
+        let start = now.addingTimeInterval(-31 * 60)
+        let reset = start.addingTimeInterval(18_000)
+        func reading(_ percent: Double, minute: Double) -> ProviderUsageSnapshot {
+            ProviderUsageSnapshot(id: .claude,
+                session: UsageWindow(usedPercent: percent, resetsAt: reset, durationSeconds: 18_000),
+                weekly: UsageWindow(usedPercent: nil, resetsAt: nil),
+                observedAt: start.addingTimeInterval(minute * 60), source: .live, message: nil)
+        }
+        let safe = reading(2, minute: 20).recordingPace(previous: nil)
+        let boundary = reading(10, minute: 30).recordingPace(previous: safe)
+        try fixture.cache.save([boundary])
+        let store = IOSUsageStore(
+            claude: StubAdapter(provider: .claude, result: .success(reading(10, minute: 31))),
+            codex: StubAdapter(provider: .codex, result: .failure(DirectUsageError.notAuthenticated)),
+            cache: fixture.cache, historyCache: fixture.historyCache)
+        XCTAssertEqual(store.snapshots.first?.sessionPaceStatus(at: now), .unavailable)
+        await store.refresh(force: true)
+        let current = try XCTUnwrap(store.snapshots.first { $0.id == .claude })
+        XCTAssertEqual(current.sessionPaceStatus(at: now), .onTrack)
+        XCTAssertEqual(current.sessionPaceAssessment(at: now)?.reason, .stabilized)
+        XCTAssertEqual(fixture.cache.load()[.claude]?.paceHistory?.sessionConclusion?.atRisk, false)
+    }
+
     func testWidgetFallsBackToCachedProviderWhenVisibilityWasNeverInitialized() {
         let suite = "ProviderVisibility.iOSWidgetFallback.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

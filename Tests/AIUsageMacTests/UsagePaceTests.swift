@@ -37,10 +37,10 @@ struct UsagePaceTests {
 
     @Test func firstMinutesAndTinyReadingsDoNotProduceFalsePaceWarnings() {
         let tiny = fiveHourSession(used: 2, elapsedMinutes: 2)
-        #expect(tiny.sessionPaceStatus(at: tiny.observedAt) == .onTrack)
+        #expect(tiny.sessionPaceStatus(at: tiny.observedAt) == .newSession)
         #expect(tiny.signal(at: tiny.observedAt) == .normal)
         let early = fiveHourSession(used: 25, elapsedMinutes: 5)
-        #expect(early.sessionPaceStatus(at: early.observedAt) == .limitIn(2_700))
+        #expect(early.sessionPaceStatus(at: early.observedAt) == .limitIn(900))
         let zero = fiveHourSession(used: 0, elapsedMinutes: 1)
         #expect(zero.sessionPaceStatus(at: zero.observedAt) == .noUsage)
         let nearReset = fiveHourSession(used: 80, elapsedMinutes: 290)
@@ -212,7 +212,7 @@ struct UsagePaceTests {
 
     @Test func flatIntervalsContributeToTheRegression() {
         let reading = series(session: [30, 35, 35, 40])
-        #expect(reading.paceEstimate(at: reading.observedAt) == .onTrackToReset)
+        #expect(reading.paceEstimate(at: reading.observedAt) == .insufficientData)
         #expect(reading.sessionPaceAssessment(at: reading.observedAt)?.projectedPercentAtReset == 103)
     }
 
@@ -223,10 +223,10 @@ struct UsagePaceTests {
         #expect(codex.paceHistory?.session.count == 1)
     }
 
-    @Test func exhaustionAfterOrExactlyAtResetIsOnTrack() {
+    @Test func exactBoundaryWithoutAPriorConclusionRemainsUncertain() {
         for reset in [2_400.0, 2_399] {
             let reading = series(session: [60, 65, 70], sessionReset: reset)
-            #expect(reading.paceEstimate(at: reading.observedAt) == .onTrackToReset)
+            #expect(reading.paceEstimate(at: reading.observedAt) == .insufficientData)
         }
     }
 

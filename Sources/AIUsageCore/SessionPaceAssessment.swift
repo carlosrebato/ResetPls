@@ -7,6 +7,7 @@ public enum SessionPaceBasis: String, Codable, Sendable {
 public enum SessionPaceReason: String, Codable, Sendable {
     case estimated, noUsage, cached, sourceUnavailable, demoData, stale, invalidReading, exhausted
     case missingReset, invalidReset, invalidDuration, insufficientHistory
+    case initialObservation, ambiguousProjection, stabilized
 }
 
 /// The evidence and result used by copy, signals and diagnostics on both platforms.
@@ -58,6 +59,13 @@ extension ProviderUsageSnapshot {
         )
         let rate: Double
         let basis: SessionPaceBasis
+        let rateUncertainty: Double
+        let earlyRiskProjection: Double?
+        let isStarting: Bool
+        // A half percentage-point guard band is a presentation tolerance,
+        // not a statistical confidence interval or a forecast of future use.
+        let readingTolerance = 0.5
+        let remaining = reset.timeIntervalSince(observedAt)
         if let duration = session.durationSeconds {
             // Unknown long-term quotas must never be presented as session pace.
             guard duration.isFinite, duration > 0, duration <= 24 * 3_600 else {
@@ -67,19 +75,27 @@ extension ProviderUsageSnapshot {
             guard elapsed.isFinite, elapsed >= -60, elapsed < duration else {
                 return result(.unavailable, .invalidReset)
             }
-            // Damp very small elapsed times continuously. There is no usage
-            // cutoff: 19.9% and 20% go through the same calculation.
             let warmup = min(15 * 60, duration * 0.1)
-            let average = percent / max(elapsed, warmup)
+            isStarting = elapsed < warmup
+            let denominator = max(elapsed, 60)
+            let average = percent / denominator
+            let averageUncertainty = readingTolerance / denominator
+            // Damp only the decision to warn during startup, never the rate
+            // used to promise safety or to calculate the warning countdown.
+            earlyRiskProjection = max(0, percent - readingTolerance)
+                * (1 + remaining / max(elapsed, warmup))
             if let trend {
                 // Ten minutes of flat readings cannot replace the entire
                 // session. A full hour of verified recent evidence can.
                 let weight = min(1, max(0, (trend.span - 600) / 3_000))
                 rate = average * (1 - weight) + trend.rate * weight
+                rateUncertainty = averageUncertainty * (1 - weight)
+                    + (2 * readingTolerance / trend.span) * weight
                 basis = weight > 0 ? .blendedRecentTrend
                     : elapsed < warmup ? .initialWindowAverage : .windowAverage
             } else {
                 rate = average
+                rateUncertainty = averageUncertainty
                 basis = elapsed < warmup ? .initialWindowAverage : .windowAverage
             }
         } else if let trend {
@@ -87,22 +103,44 @@ extension ProviderUsageSnapshot {
             // evidence can estimate those windows; the reason remains explicit.
             rate = trend.rate
             basis = .recentTrend
+            rateUncertainty = 2 * readingTolerance / trend.span
+            earlyRiskProjection = nil
+            isStarting = false
         } else {
             return result(.unavailable, .insufficientHistory)
         }
         guard rate.isFinite, rate >= 0 else { return result(.unavailable, .invalidReading) }
-        let projected = percent + rate * reset.timeIntervalSince(observedAt)
+        let projected = percent + rate * remaining
         guard projected.isFinite else { return result(.unavailable, .invalidReading) }
         let deadline = rate > 0 ? observedAt.addingTimeInterval((100 - percent) / rate) : nil
-        // A five-point projection tolerance avoids warnings at the exact
-        // boundary because of integer provider readings or tiny reset drift.
-        let status: SessionPaceStatus
-        if projected > 105, let deadline {
-            status = .limitIn(max(60, deadline.timeIntervalSince(now)))
-        } else {
-            status = .onTrack
+        let uncertainty = readingTolerance + rateUncertainty * remaining
+        let prior = paceHistory?.sessionConclusion.flatMap { conclusion in
+            UsagePaceHistory.sameWindow(conclusion.reset, reset)
+                && conclusion.observedAt <= observedAt ? conclusion : nil
         }
-        return result(status, .estimated, basis: basis, rate: rate,
+        let status: SessionPaceStatus
+        let reason: SessionPaceReason
+        if projected - uncertainty > 100,
+           !isStarting || (earlyRiskProjection ?? 0) > 100, let deadline {
+            status = .limitIn(max(60, deadline.timeIntervalSince(now)))
+            reason = .estimated
+        } else if !isStarting, projected + uncertainty < 100 {
+            status = .onTrack
+            reason = .estimated
+        } else if let prior {
+            // Hysteresis inside the guard band: keep the conclusion but use
+            // the current rate/deadline, not the previous reading's ETA.
+            if prior.atRisk, let deadline {
+                status = .limitIn(max(60, deadline.timeIntervalSince(now)))
+            } else {
+                status = .onTrack
+            }
+            reason = .stabilized
+        } else {
+            status = isStarting ? .newSession : .measuring
+            reason = isStarting ? .initialObservation : .ambiguousProjection
+        }
+        return result(status, reason, basis: basis, rate: rate,
                       projected: projected, deadline: deadline)
     }
 }
