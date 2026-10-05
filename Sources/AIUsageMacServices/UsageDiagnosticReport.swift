@@ -14,6 +14,8 @@ public struct UsageDiagnosticReport: Codable, Sendable {
         public let consecutiveFailures: Int
         public let nextRefreshInSeconds: Int
         public let isVerifyingAuthorization: Bool
+        public let sessionPaceBasis: SessionPaceBasis?
+        public let sessionPaceReason: SessionPaceReason?
     }
 
     public let schemaVersion: Int

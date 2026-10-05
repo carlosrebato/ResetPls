@@ -107,6 +107,7 @@ public final class UsageStore: ObservableObject {
                   let snapshot = snapshots.first(where: { $0.id == provider })
             else { return nil }
             let nextRefresh = nextRefreshAt[provider] ?? now
+            let sessionPace = snapshot.sessionPaceAssessment(at: now)
             return UsageDiagnosticReport.Provider(
                 id: provider,
                 phase: status.phase.diagnosticName,
@@ -118,7 +119,9 @@ public final class UsageStore: ObservableObject {
                 observationAgeSeconds: max(0, Int(now.timeIntervalSince(snapshot.observedAt))),
                 consecutiveFailures: consecutiveFailures[provider, default: 0],
                 nextRefreshInSeconds: max(0, Int(nextRefresh.timeIntervalSince(now))),
-                isVerifyingAuthorization: verifyingProviders.contains(provider)
+                isVerifyingAuthorization: verifyingProviders.contains(provider),
+                sessionPaceBasis: sessionPace?.basis,
+                sessionPaceReason: sessionPace?.reason
             )
         }
         let report = UsageDiagnosticReport(

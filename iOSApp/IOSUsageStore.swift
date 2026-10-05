@@ -45,6 +45,17 @@ final class IOSUsageStore: ObservableObject {
         }
     }
 
+    /// Collect real observations while the dashboard is active, using the same
+    /// ordinary cadence as Mac. Updating the UI clock alone is not a refresh.
+    func refreshIfDue(at date: Date) async {
+        let interval = TimeInterval(PollingPolicy.interval(
+            for: .normal, consecutiveFailures: 0
+        ).components.seconds)
+        guard !isDemoMode, !isRefreshing,
+              lastRefresh.map({ date.timeIntervalSince($0) >= interval }) ?? true else { return }
+        await refresh()
+    }
+
     func refresh(force: Bool = false) async {
         if isDemoMode {
             applyDemo()

@@ -5,6 +5,7 @@ import SwiftUI
 
 struct IOSDashboardView: View {
     @EnvironmentObject private var store: IOSUsageStore
+    @Environment(\.scenePhase) private var scenePhase
     @AppStorage(AppLanguage.preferenceKey) private var language: AppLanguage = .english
     @State private var now = Date.now
     @State private var showsSettings = ProcessInfo.processInfo.arguments.contains("--show-settings")
@@ -56,7 +57,12 @@ struct IOSDashboardView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .onReceive(timer) { now = $0 }
+        .onReceive(timer) { date in
+            now = date
+            if scenePhase == .active {
+                Task { await store.refreshIfDue(at: date) }
+            }
+        }
         .onChange(of: store.snapshots) { _, _ in now = .now }
         .onChange(of: language) { _, value in value.persistForExtensions() }
         .sheet(isPresented: $showsSettings) {

@@ -521,6 +521,8 @@ struct UsageStoreTests {
         )
         let claude = report.providers.first { $0.id == .claude }
         #expect(claude?.phase == "connected")
+        #expect(claude?.sessionPaceReason == .cached)
+        #expect(claude?.sessionPaceBasis == SessionPaceBasis.none)
         #expect(claude?.consecutiveFailures == 0)
         #expect((claude?.nextRefreshInSeconds ?? 0) >= 299)
     }
