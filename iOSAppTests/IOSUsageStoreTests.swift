@@ -1,10 +1,31 @@
 import AIUsageCore
 import AIUsageProviderServices
+import AIUsageDesignSystem
+import SwiftUI
 import XCTest
 @testable import AIUsageIOS
 
 @MainActor
 final class IOSUsageStoreTests: XCTestCase {
+    func testInlineProviderImagesHaveBoundedNaturalSize() throws {
+        // The real inline host ignores frame/resizable modifiers. Ensure the
+        // image attachments themselves fit a line, even before host layout.
+        for provider in UsageProviderID.allCases {
+            let rendered = try XCTUnwrap(ImageRenderer(content:
+                Text("\(ProviderGlyph.inlineImage(provider: provider))")
+                    .font(.system(size: 14))).uiImage)
+            XCTAssertGreaterThan(rendered.size.width, 0)
+            XCTAssertLessThanOrEqual(rendered.size.width, 18)
+            XCTAssertLessThanOrEqual(rendered.size.height, 24)
+        }
+        let both = try XCTUnwrap(ImageRenderer(content:
+            Text("\(ProviderGlyph.inlineImage(provider: .claude)) 4% · \(ProviderGlyph.inlineImage(provider: .codex)) 15%")
+                .font(.system(size: 14))).uiImage)
+        XCTAssertGreaterThan(both.size.width, 60)
+        XCTAssertLessThan(both.size.width, 150)
+        XCTAssertLessThanOrEqual(both.size.height, 24)
+    }
+
     func testRestartPreservesSessionConclusionAtTheBoundary() async throws {
         let fixture = try Fixture()
         let now = Date.now

@@ -11,54 +11,39 @@ private struct UsageWidgetEntry: TimelineEntry {
     let history: UsageHistory
 }
 
-private enum WidgetProviderChoice: String, AppEnum {
+enum WidgetProviderChoice: String, AppEnum {
+    case automatic
     case claude
     case codex
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Service")
     static let caseDisplayRepresentations: [Self: DisplayRepresentation] = [
+        .automatic: "First connected service",
         .claude: "Claude Code",
         .codex: "Codex"
     ]
 
-    var provider: UsageProviderID {
+    var provider: UsageProviderID? {
         switch self {
+        case .automatic: nil
         case .claude: .claude
         case .codex: .codex
         }
     }
 }
 
-private struct ActiveProviderOptions: DynamicOptionsProvider {
-    func results() async throws -> [WidgetProviderChoice] {
-        let cached = UsageSnapshotCache().load()
-        let providers = ProviderVisibilityPreferences.displayedProviders(
-            cachedProviders: Set(cached.keys)
-        )
-        let resolved = providers.isEmpty ? UsageProviderID.allCases : providers
-        return resolved.map { $0 == .claude ? .claude : .codex }
-    }
-
-    func defaultResult() async -> WidgetProviderChoice? {
-        let cached = UsageSnapshotCache().load()
-        let providers = ProviderVisibilityPreferences.displayedProviders(
-            cachedProviders: Set(cached.keys)
-        )
-        // Render a concrete service immediately; Edit Widget can change it.
-        let provider = providers.first ?? .claude
-        return provider == .claude ? .claude : .codex
-    }
-}
-
-private struct ProviderWidgetIntent: WidgetConfigurationIntent {
+struct ProviderWidgetIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Choose service"
     static let description = IntentDescription("Choose which service this widget displays.")
 
-    @Parameter(title: "Service", optionsProvider: ActiveProviderOptions())
-    var provider: WidgetProviderChoice?
+    // WidgetKit must see the default in extracted parameter metadata. An
+    // optional dynamic parameter plus init() alone leaves first placement
+    // dependent on the intent-resolution process, before timelines can run.
+    @Parameter(title: "Service", default: .automatic)
+    var provider: WidgetProviderChoice
 
-    init() {
-        provider = .claude
+    static var parameterSummary: some ParameterSummary {
+        Summary("Show \(\.$provider)")
     }
 }
 
@@ -164,9 +149,8 @@ private struct ProviderWidgetTimelineProvider: AppIntentTimelineProvider {
         let available = ProviderVisibilityPreferences.displayedProviders(
             cachedProviders: Set(cached.keys)
         )
-        if available.count == 1, let onlyProvider = available.first { return onlyProvider }
-        if let choice, available.isEmpty || available.contains(choice.provider) { return choice.provider }
-        return available.first ?? .claude
+        if let provider = choice?.provider { return provider }
+        return ProviderOrderPreferences.ordered().first { available.contains($0) } ?? .claude
     }
 }
 
@@ -617,17 +601,19 @@ private struct UsageWidgetView: View {
             VStack(spacing: 7) {
                 ForEach(displayedSnapshots) { snapshot in
                     HStack(spacing: 8) {
-                        ProviderGlyph(provider: snapshot.id, size: 11, color: .primary.opacity(0.82))
+                        ProviderGlyph(provider: snapshot.id, size: 13, color: .primary.opacity(0.9))
                         Text(percent(snapshot.primaryDisplayWindow.usedPercent))
-                            .font(.system(size: 13, weight: .bold)).monospacedDigit()
-                            .frame(width: 34, alignment: .leading)
+                            .font(.system(size: 15, weight: .bold)).monospacedDigit()
+                            .frame(width: 40, alignment: .leading)
                         accessoryMeter(snapshot)
                         Text(actionLabel(for: snapshot.id) ?? (isStale(snapshot)
                             ? snapshot.observedAt.formatted(date: .omitted, time: .shortened)
                             : shortReset(snapshot)))
-                            .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
                             .frame(width: 62, alignment: .trailing)
-                            .opacity(0.7)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                            .opacity(0.8)
                     }
                 }
             }
@@ -656,30 +642,27 @@ private struct UsageWidgetView: View {
                 systemImage: "arrow.clockwise"
             )
         } else {
-            HStack(spacing: 5) {
-                ForEach(Array(displayedSnapshots.enumerated()), id: \.element.id) { index, snapshot in
-                    if index > 0 { Text("·").foregroundStyle(.secondary) }
-                    ProviderGlyph(provider: snapshot.id, size: 11, color: .primary.opacity(0.88))
-                    if let action = actionLabel(for: snapshot.id) {
-                        Text(action.lowercased(with: language.locale))
-                    } else {
-                        Text(percent(snapshot.primaryDisplayWindow.usedPercent))
-                        if isStale(snapshot), displayedSnapshots.count == 1 {
-                            Image(systemName: "clock")
-                            Text(snapshot.observedAt.formatted(date: .omitted, time: .shortened))
-                        }
-                    }
-                }
-                if displayedSnapshots.count == 1,
-                   !displayedSnapshots.contains(where: isStale),
-                   actionProvider == nil {
-                    Image(systemName: "clock")
-                    Text(shortReset(displayedSnapshots.min {
-                        ($0.availabilityReset ?? .distantFuture) < ($1.availabilityReset ?? .distantFuture)
-                    }!))
-                }
+            inlineText
+        }
+    }
+
+    /// The inline host extracts one text payload, not an arbitrary HStack.
+    /// Embed bounded image attachments in that payload so both services survive.
+    private var inlineText: Text {
+        var result = Text("")
+        for (index, snapshot) in displayedSnapshots.enumerated() {
+            if index > 0 { result = result + Text(" · ") }
+            let value = actionLabel(for: snapshot.id)?.lowercased(with: language.locale)
+                ?? percent(snapshot.primaryDisplayWindow.usedPercent)
+            result = result + Text("\(ProviderGlyph.inlineImage(provider: snapshot.id)) \(value)")
+            if displayedSnapshots.count == 1, actionLabel(for: snapshot.id) == nil {
+                let time = isStale(snapshot)
+                    ? snapshot.observedAt.formatted(date: .omitted, time: .shortened)
+                    : shortReset(snapshot)
+                result = result + Text("  \(Image(systemName: "clock")) \(time)")
             }
         }
+        return result
     }
     #endif
 
@@ -728,7 +711,7 @@ private struct UsageWidgetView: View {
     }
 
     private var displayedSnapshots: [ProviderUsageSnapshot] {
-        let ordered = UsageProviderID.allCases.compactMap { provider in
+        let ordered = ProviderOrderPreferences.ordered().compactMap { provider in
             entry.snapshots.first { $0.id == provider }
         }
         if let scopedProvider { return ordered.filter { $0.id == scopedProvider } }

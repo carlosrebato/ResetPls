@@ -1,6 +1,9 @@
 import AIUsageCore
 import Foundation
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 public struct UsageCompactMetrics: View {
     public let snapshots: [ProviderUsageSnapshot]
@@ -994,6 +997,10 @@ public struct ProviderGlyph: View {
     }
 
     private var providerMarksBundle: Bundle {
+        Self.marksBundle
+    }
+
+    private static var marksBundle: Bundle {
         if let url = Bundle.main.url(
             forResource: "AIUsageKit_AIUsageDesignSystem",
             withExtension: "bundle"
@@ -1002,6 +1009,22 @@ public struct ProviderGlyph: View {
         }
         return .module
     }
+
+    #if os(iOS)
+    /// Inline WidgetKit hosts do not honor resizable/frame view modifiers on
+    /// extracted images. Give Text a small, template image at its natural size.
+    public static func inlineImage(provider: UsageProviderID, size: CGFloat = 14) -> Image {
+        let name = provider == .claude ? "ClaudeLogo" : "CodexLogo"
+        guard let source = UIImage(named: name, in: marksBundle, compatibleWith: nil) else {
+            return Image(systemName: provider.symbolName)
+        }
+        let image = UIGraphicsImageRenderer(size: CGSize(width: size, height: size)).image { _ in
+            source.withTintColor(.white, renderingMode: .alwaysOriginal)
+                .draw(in: CGRect(x: 0, y: 0, width: size, height: size))
+        }
+        return Image(uiImage: image.withRenderingMode(.alwaysTemplate))
+    }
+    #endif
 }
 
 public struct UsagePillButtonStyle: ButtonStyle {

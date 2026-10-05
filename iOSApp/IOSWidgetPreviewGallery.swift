@@ -1014,12 +1014,12 @@ private struct RectangularUsageWidgetPreview: View {
         requiresReauth: Bool
     ) -> some View {
         HStack(spacing: 8) {
-            ProviderGlyph(provider: provider, size: 11, color: .white.opacity(0.82))
+            ProviderGlyph(provider: provider, size: 13, color: .white.opacity(0.9))
             Text("\(percent)%")
-                .font(.system(size: 13, weight: .bold))
+                .font(.system(size: 15, weight: .bold))
                 .monospacedDigit()
                 .foregroundStyle(.white.opacity(requiresReauth ? 0.58 : 1))
-                .frame(width: 31, alignment: .leading)
+                .frame(width: 40, alignment: .leading)
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(.white.opacity(0.13))
@@ -1031,20 +1031,21 @@ private struct RectangularUsageWidgetPreview: View {
             .frame(height: 4)
             if requiresReauth {
                 Text(spanishCopies ? "RECONECTA" : "RECONNECT")
-                    .font(.system(size: 7.5, weight: .bold))
-                    .tracking(0.35)
-                    .foregroundStyle(.white.opacity(0.72))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.8))
                     .frame(width: 62, alignment: .trailing)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
             } else if state == .staleFailed {
                 Label("10:14", systemImage: "clock.fill")
-                    .font(.system(size: 8, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.58))
-                    .frame(width: 52, alignment: .trailing)
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .frame(width: 62, alignment: .trailing)
             } else {
                 Text(reset)
-                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.65))
-                    .frame(width: 40, alignment: .trailing)
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.8))
+                    .frame(width: 62, alignment: .trailing)
             }
         }
     }
@@ -1090,42 +1091,7 @@ private struct InlineUsageWidgetPreview: View {
     var spanishCopies = false
 
     var body: some View {
-        HStack(spacing: 7) {
-            if state == .unavailable {
-                ProviderGlyph(provider: .codex, size: 11, color: .white.opacity(0.72))
-                Text(spanishCopies ? "Abrir app para reconectar" : "Open app to reconnect")
-            } else if providers.contains(.claude) {
-                ProviderGlyph(provider: .claude, size: 11, color: .white.opacity(0.82))
-                Text("28%")
-                if providers.count > 1 {
-                    Text("·").foregroundStyle(.white.opacity(0.42))
-                }
-                if providers.contains(.codex) {
-                    ProviderGlyph(provider: .codex, size: 11, color: .white.opacity(0.82))
-                    Text(reauthProvider == .codex
-                        ? (spanishCopies ? "Reconecta" : "Reconnect")
-                        : "64%"
-                    )
-                }
-                if reauthProvider == nil, providers.count == 1 {
-                    Image(systemName: "clock")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.65))
-                    Text(state == .staleFailed ? "10:14" : "5d")
-                }
-            } else if providers.contains(.codex) {
-                ProviderGlyph(provider: .codex, size: 11, color: .white.opacity(0.82))
-                if reauthProvider == .codex {
-                    Text(spanishCopies ? "Reconecta" : "Reconnect")
-                } else {
-                    Text("64%")
-                    Image(systemName: "clock")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.65))
-                    Text(state == .staleFailed ? "10:14" : "5d")
-                }
-            }
-        }
+        inlineText
         .font(.system(size: 12, weight: .semibold, design: .rounded))
         .monospacedDigit()
         .foregroundStyle(.white)
@@ -1134,6 +1100,25 @@ private struct InlineUsageWidgetPreview: View {
         .background(.ultraThinMaterial, in: Capsule())
         .overlay { Capsule().stroke(Color.white.opacity(0.12), lineWidth: 1) }
         .frame(maxWidth: .infinity)
+    }
+
+    private var inlineText: Text {
+        if state == .unavailable {
+            return Text(spanishCopies ? "Abrir app para reconectar" : "Open app to reconnect")
+        }
+        var result = Text("")
+        for (index, provider) in UsageProviderID.allCases.filter({ providers.contains($0) }).enumerated() {
+            if index > 0 { result = result + Text(" · ") }
+            let value = reauthProvider == provider
+                ? (spanishCopies ? "Reconecta" : "Reconnect")
+                : provider == .claude ? "28%" : "64%"
+            result = result + Text("\(ProviderGlyph.inlineImage(provider: provider)) \(value)")
+            if providers.count == 1, reauthProvider == nil {
+                let time = state == .staleFailed ? "10:14" : provider == .claude ? "1h 29m" : "5d"
+                result = result + Text("  \(Image(systemName: "clock")) \(time)")
+            }
+        }
+        return result
     }
 }
 
