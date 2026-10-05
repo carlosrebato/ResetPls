@@ -19,9 +19,9 @@ until an end-to-end update has been tested from a currently installed build.
 ## Cutover gates
 
 1. Finish the code review, macOS/iOS build checks, and secret scan.
-2. Keep `ai-usage-mac` public and its current appcast available while this
-   repository is private. A private GitHub raw URL or release download is not a
-   public Sparkle update endpoint.
+2. Keep `ai-usage-mac` public and its current appcast available during source
+   publication and updater cutover. ResetPls source became public on 2026-10-05;
+   this alone does not migrate signed releases or update feeds.
 3. When a public ResetPls feed is ready, publish a higher-version, correctly
    signed bridge release through the **old** appcast. The bridge app keeps the
    same bundle ID, signing identity and Sparkle public key, but points future

@@ -24,10 +24,16 @@ signed update channel or constitute an App Store release.
 ## Install
 
 Download the latest notarized macOS ZIP from
-[GitHub Releases](https://github.com/carlosrebato/ai-usage-mac/releases), unzip it
-and move **ResetPls.app** to Applications. The current release is a public beta;
+[GitHub Releases](https://github.com/carlosrebato/ai-usage-mac/releases). Stable
+0.1.5 is branded ResetPls but its bundle is still named **AI Usage.app**. The
+transition beta installs as **ResetPls.app**; follow the one-time instructions
+in the release repository's distribution guide rather than renaming or
+overwriting the old bundle manually. The current release is a public beta;
 please report reproducible issues without attaching credentials or conversation
 logs.
+
+Website: [resetpls.app](https://resetpls.app). Source and issue reports now live
+in this repository; signed downloads remain in the release repository above.
 
 ## Requirements
 

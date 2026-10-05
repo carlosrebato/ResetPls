@@ -9,6 +9,10 @@ npm --prefix landing run build
 
 Preview: http://127.0.0.1:4173. Static output: `landing/dist`.
 
+Source, privacy and issue-report links point to `carlosrebato/ResetPls`.
+Mac downloads intentionally stay at the existing `ai-usage-mac` release until
+the signed updater migration is tested. See `../docs/project-links.md`.
+
 The device-frame binaries are intentionally not committed. Before deploying this
 site, supply `public/macbook-pro-hd.avif` and `public/iphone-17.png` from their
 original providers under their respective licenses, or replace them with assets

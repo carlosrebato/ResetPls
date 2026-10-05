@@ -15,3 +15,10 @@ AIUsage [0-9]*.xcodeproj/
 *.xcuserstate
 xcuserdata/
 .DS_Store
+
+# Local Cloudflare state and environment credentials
+.wrangler/
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
