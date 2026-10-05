@@ -40,12 +40,22 @@ or account data.
 
 ## Weekly
 
-Use verified seven-day quotas and the provider observation time. During day one,
+Evaluate verified seven-day quotas even when they are secondary to a session,
+using the provider observation time. During day one,
 use at least one day's share of the week; after that use the elapsed window.
 Thresholds remain <80%, 80–105%, >105–125% and >125% projected consumption. High
 risk stays amber during the first 48 hours, then becomes red. This classification
 does not depend on the number of local observations, so identical current weekly
 readings and reset times produce the same result on Mac and iOS.
+
+On dual-quota cards, a healthy secondary week adds no redundant positive line.
+A tight, at-risk or high-risk week adds its approved copy in muted grey, with the
+existing weekly help. The primary weekly presentation retains its previous colors.
+The secondary percentage and meter keep their current appearance. The global dot
+uses the most severe quota or pace alert; cached/stale state still takes precedence.
+Every panel and its height calculation use `weeklyPaceNotice`, while single-line
+widgets use `preferredPaceNotice`: high weekly risk first, then a session ETA, then
+the relevant weekly notice or session status.
 
 ## Collection
 

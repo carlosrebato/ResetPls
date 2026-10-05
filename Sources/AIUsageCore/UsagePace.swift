@@ -51,6 +51,13 @@ public struct WeeklyRiskAssessment: Equatable, Sendable {
     public let projectedPercent: Double
 }
 
+/// A compact surface has one line; choose its notice without letting a healthy
+/// secondary week hide a session warning, or a session hide high weekly risk.
+public enum PaceNotice: Equatable, Sendable {
+    case session(SessionPaceStatus)
+    case weekly(WeeklyRiskAssessment)
+}
+
 /// Per-provider quota samples, carried by the existing last-known snapshot cache.
 /// No credentials, extra polling, database, or additional disk writes are needed.
 public struct UsagePaceHistory: Equatable, Codable, Sendable {
@@ -110,10 +117,10 @@ extension ProviderUsageSnapshot {
         return .normal
     }
 
-    /// Only evaluate a verified, current weekly-only primary quota. A short burst
-    /// of activity must not be extrapolated into an all-week risk score.
+    /// Evaluate every verified current weekly quota, including a secondary one.
+    /// A short session burst must not become an all-week risk score.
     public func weeklyRisk(at now: Date) -> WeeklyRiskAssessment? {
-        guard primaryQuotaID == .weekly, source == .live, !isStale(at: now),
+        guard source == .live, !isStale(at: now),
               weekly.isVerifiedWeekly,
               let used = weekly.usedPercent, used.isFinite, (0..<100).contains(used),
               let reset = weekly.resetsAt, reset > now,
@@ -147,6 +154,23 @@ extension ProviderUsageSnapshot {
             elapsedPercent: elapsed / duration * 100,
             projectedPercent: projected
         )
+    }
+
+    /// A primary week always explains its pace. A secondary week adds a line
+    /// only when it is tight or risky, keeping healthy dual-quota cards quiet.
+    public func weeklyPaceNotice(at now: Date) -> WeeklyRiskAssessment? {
+        guard availability == .available, let assessment = weeklyRisk(at: now),
+              primaryQuotaID == .weekly || assessment.state != .roomToSpare else { return nil }
+        return assessment
+    }
+
+    public func preferredPaceNotice(at now: Date) -> PaceNotice? {
+        let weekly = weeklyPaceNotice(at: now)
+        let session = sessionPaceStatus(at: now)
+        if let weekly, weekly.state == .highRisk { return .weekly(weekly) }
+        if let session, case .limitIn = session { return .session(session) }
+        if let weekly { return .weekly(weekly) }
+        return session.map(PaceNotice.session)
     }
 
     public var availability: UsageAvailability {
@@ -229,6 +253,13 @@ public enum UsagePaceFormatter {
 }
 
 extension AppLanguage {
+    public func paceNoticeText(_ notice: PaceNotice) -> String {
+        switch notice {
+        case .session(let status): sessionPaceText(status)
+        case .weekly(let assessment): weeklyRiskText(assessment)
+        }
+    }
+
     public func weeklyRiskText(_ assessment: WeeklyRiskAssessment) -> String {
         switch assessment.state {
         case .roomToSpare:
