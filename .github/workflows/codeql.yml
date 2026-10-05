@@ -26,7 +26,9 @@ jobs:
   analyze:
     name: Analyze Swift
     runs-on: macos-15
-    timeout-minutes: 30
+    # Instrumented Mac + iOS builds take about 30 minutes on hosted runners.
+    # Leave time for analysis, result upload and post-job cleanup as well.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
       - uses: github/codeql-action/init@v4
