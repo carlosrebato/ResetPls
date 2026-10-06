@@ -821,7 +821,8 @@ public struct UsageFloatingMetrics: View {
                         .tracking(0.7)
                         .monospacedDigit()
                         .foregroundStyle(UsageTheme.availabilityText(snapshot))
-                    UsagePaceLine(snapshot: snapshot, now: now, language: language)
+                    UsagePaceLine(snapshot: snapshot, now: now, language: language,
+                                  primaryOnly: true, allowsHelp: false)
                 }
             }
         }
@@ -837,11 +838,15 @@ struct UsagePaceLine: View {
     let snapshot: ProviderUsageSnapshot
     let now: Date
     let language: AppLanguage
+    var primaryOnly = false
+    var allowsHelp = true
 
     @ViewBuilder
     var body: some View {
-        let sessionStatus = snapshot.sessionPaceStatus(at: now)
-        let weeklyRisk = snapshot.weeklyPaceNotice(at: now)
+        let sessionStatus = primaryOnly && snapshot.primaryQuotaID != .session
+            ? nil : snapshot.sessionPaceStatus(at: now)
+        let weeklyRisk = primaryOnly && snapshot.primaryQuotaID != .weekly
+            ? nil : snapshot.weeklyPaceNotice(at: now)
         if sessionStatus != nil || weeklyRisk != nil {
             VStack(alignment: .leading, spacing: 5) {
                 if let sessionStatus {
@@ -857,7 +862,8 @@ struct UsagePaceLine: View {
                         text: language.weeklyRiskText(weeklyRisk),
                         help: language.weeklyRiskHelp(weeklyRisk),
                         color: snapshot.primaryQuotaID == .weekly
-                            ? weeklyRiskColor(weeklyRisk.state) : UsageTheme.mutedText
+                            ? weeklyRiskColor(weeklyRisk.state) : UsageTheme.mutedText,
+                        allowsHelp: allowsHelp
                     )
                 }
             }
@@ -884,6 +890,7 @@ private struct WeeklyRiskLine: View {
     let text: String
     let help: String
     let color: Color
+    var allowsHelp = true
     @State private var showsHelp = false
 
     var body: some View {
@@ -893,12 +900,12 @@ private struct WeeklyRiskLine: View {
             .fixedSize(horizontal: false, vertical: true)
             .contentShape(Rectangle())
             #if os(macOS)
-            .onHover { showsHelp = $0 }
+            .onHover { showsHelp = allowsHelp && $0 }
             #else
-            .onTapGesture { showsHelp.toggle() }
+            .onTapGesture { if allowsHelp { showsHelp.toggle() } }
             #endif
             .overlay(alignment: .bottomLeading) {
-                if showsHelp {
+                if allowsHelp && showsHelp {
                     Text(help)
                         .font(.system(size: 11))
                         .foregroundStyle(UsageTheme.primaryText)
