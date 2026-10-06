@@ -104,7 +104,8 @@ public struct UsageCompactMetrics: View {
             .tracking(0.45)
             .monospacedDigit()
             .lineLimit(1)
-            UsagePaceLine(snapshot: snapshot, now: now, language: language)
+            UsagePaceLine(snapshot: snapshot, now: now, language: language,
+                          primaryOnly: true)
         }
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
