@@ -1,6 +1,7 @@
 import AIUsageCore
 import AIUsageDesignSystem
 import AppIntents
+import OSLog
 import SwiftUI
 import WidgetKit
 
@@ -28,32 +29,16 @@ enum WidgetProviderChoice: String, AppEnum {
         }
     }
 
-    static var firstDisplayed: Self {
-        let cached = UsageSnapshotCache().load()
-        let available = ProviderVisibilityPreferences.displayedProviders(cachedProviders: Set(cached.keys))
-        let first = ProviderOrderPreferences.ordered().first { available.contains($0) }
-            ?? ProviderOrderPreferences.ordered().first ?? .claude
-        return first == .codex ? .codex : .claude
-    }
-}
-
-struct WidgetServiceOptions: DynamicOptionsProvider {
-    func results() async throws -> [WidgetProviderChoice] {
-        ProviderOrderPreferences.ordered().map { $0 == .codex ? .codex : .claude }
-    }
-
-    func defaultResult() async -> WidgetProviderChoice? { .firstDisplayed }
 }
 
 struct ProviderWidgetIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Choose service"
     static let description = IntentDescription("Choose which service this widget displays.")
 
-    // Concrete metadata default prevents an unresolved first placement. The
-    // options provider supplies the displayed order; never rewrite saved choices
-    // in init(), which would also run when WidgetKit decodes a configuration.
-    @Parameter(title: "Service", default: .claude, optionsProvider: WidgetServiceOptions())
-    var provider: WidgetProviderChoice
+    // Use the first concrete service as the metadata default. No synthetic
+    // automatic choice, dynamic resolver or init() rewriting a saved selection.
+    @Parameter(title: "Service", default: .claude)
+    var provider: WidgetProviderChoice?
 
     static var parameterSummary: some ParameterSummary {
         Summary("Show \(\.$provider)")
@@ -143,6 +128,8 @@ private struct ProviderWidgetTimelineProvider: AppIntentTimelineProvider {
     }
 
     func timeline(for configuration: ProviderWidgetIntent, in context: Context) async -> Timeline<UsageWidgetEntry> {
+        Logger(subsystem: "crbg.resetpls.widgets", category: "configuration")
+            .notice("Widget service: \(configuration.provider?.rawValue ?? "unset", privacy: .public)")
         let entry = configuredEntry(for: resolvedProvider(configuration.provider), usePreviewIfEmpty: false)
         let nextRefresh = Calendar.current.date(byAdding: .minute, value: 15, to: entry.date)!
         return Timeline(entries: [entry], policy: .after(nextRefresh))
