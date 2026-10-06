@@ -49,12 +49,11 @@ struct ProviderWidgetIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Choose service"
     static let description = IntentDescription("Choose which service this widget displays.")
 
-    // Keep a concrete metadata default so first placement never waits on an
-    // unset optional intent. Runtime resolution selects the first shown service.
+    // Concrete metadata default prevents an unresolved first placement. The
+    // options provider supplies the displayed order; never rewrite saved choices
+    // in init(), which would also run when WidgetKit decodes a configuration.
     @Parameter(title: "Service", default: .claude, optionsProvider: WidgetServiceOptions())
     var provider: WidgetProviderChoice
-
-    init() { provider = .firstDisplayed }
 
     static var parameterSummary: some ParameterSummary {
         Summary("Show \(\.$provider)")
