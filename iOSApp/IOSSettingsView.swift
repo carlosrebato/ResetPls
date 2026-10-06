@@ -202,6 +202,23 @@ struct IOSSettingsView: View {
 
     private var supportSection: some View {
         settingsSection(language.text("Support", "Soporte")) {
+            ShareLink(item: store.diagnosticReport()) {
+                HStack(spacing: 13) {
+                    settingsIcon("square.and.arrow.up")
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(language.text("Export diagnostic", "Exportar diagnóstico")).settingsRowTitle()
+                        Text(language.text(
+                            "Limits and update status only. No credentials.",
+                            "Solo límites y estado de actualización. Sin credenciales."
+                        )).settingsRowSubtitle()
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 15)
+                .frame(minHeight: 68)
+            }
+            .buttonStyle(.plain)
+            settingsDivider
             supportRow(
                 language.text("Help", "Ayuda"),
                 systemName: "questionmark.circle",

@@ -22,6 +22,50 @@ final class IOSUsageStore: ObservableObject {
     private let statusCache: ProviderStatusCache
     private var lastRefresh: Date?
 
+    /// Explicit allowlist: never export adapter responses, credentials, account
+    /// identifiers, messages or conversation history with a usage diagnostic.
+    func diagnosticReport(at date: Date = .now) -> String {
+        struct Report: Encodable {
+            struct Provider: Encodable {
+                let provider: String
+                let state: String
+                let source: String?
+                let observedAt: Date?
+                let session: UsageWindow?
+                let weekly: UsageWindow?
+                let hasTokenTotals: Bool
+            }
+            let generatedAt: Date
+            let version: String
+            let build: String
+            let operatingSystem: String
+            let providers: [Provider]
+        }
+        let report = Report(
+            generatedAt: date,
+            version: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown",
+            build: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "unknown",
+            operatingSystem: ProcessInfo.processInfo.operatingSystemVersionString,
+            providers: UsageProviderID.allCases.map { provider in
+                let snapshot = snapshots.first { $0.id == provider }
+                return Report.Provider(
+                    provider: provider.rawValue,
+                    state: (states[provider] ?? .setupRequired).rawValue,
+                    source: snapshot?.source.rawValue,
+                    observedAt: snapshot?.observedAt,
+                    session: snapshot?.session, weekly: snapshot?.weekly,
+                    hasTokenTotals: snapshot?.weeklyTotals != nil
+                )
+            }
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(report), let text = String(data: data, encoding: .utf8)
+        else { return "ResetPls diagnostic could not be generated." }
+        return text
+    }
+
     init(
         claude: any DirectUsageAdapter = ClaudeDirectAdapter(),
         codex: any DirectUsageAdapter = CodexDirectAdapter(),

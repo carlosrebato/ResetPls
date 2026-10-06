@@ -7,6 +7,31 @@ import XCTest
 
 @MainActor
 final class IOSUsageStoreTests: XCTestCase {
+    func testDiagnosticExportsResetWithoutPrivateMessages() throws {
+        let fixture = try Fixture()
+        let now = Date(timeIntervalSince1970: 1_790_000_000)
+        let reset = now.addingTimeInterval(18_000)
+        let snapshot = ProviderUsageSnapshot(id: .claude,
+            session: UsageWindow(usedPercent: 25, resetsAt: reset, durationSeconds: 18_000),
+            weekly: UsageWindow(usedPercent: 40, resetsAt: nil, durationSeconds: 604_800),
+            observedAt: now, source: .live, message: "PRIVATE-MESSAGE-DO-NOT-EXPORT")
+        try fixture.cache.save([snapshot])
+        let store = IOSUsageStore(
+            claude: StubAdapter(provider: .claude, result: .success(snapshot)),
+            codex: StubAdapter(provider: .codex, result: .failure(DirectUsageError.notAuthenticated)),
+            cache: fixture.cache, historyCache: fixture.historyCache)
+        let report = store.diagnosticReport(at: now)
+        XCTAssertFalse(report.contains("PRIVATE-MESSAGE"))
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(report.utf8)) as? [String: Any])
+        let providers = try XCTUnwrap(json["providers"] as? [[String: Any]])
+        let claude = try XCTUnwrap(providers.first { $0["provider"] as? String == "claude" })
+        let session = try XCTUnwrap(claude["session"] as? [String: Any])
+        XCTAssertEqual(session["usedPercent"] as? Double, 25)
+        XCTAssertNotNil(session["resetsAt"] as? String)
+        XCTAssertEqual(claude["hasTokenTotals"] as? Bool, false)
+        XCTAssertEqual(Set(claude.keys), ["provider", "state", "source", "observedAt", "session", "weekly", "hasTokenTotals"])
+    }
+
     func testInlineProviderImagesHaveBoundedNaturalSize() throws {
         // The real inline host ignores frame/resizable modifiers. Ensure the
         // image attachments themselves fit a line, even before host layout.

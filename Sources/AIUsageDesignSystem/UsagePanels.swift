@@ -1135,10 +1135,17 @@ func equivalentCostHelp(
 }
 
 private func missingLocalHistoryHelp(language: AppLanguage) -> String {
+    #if os(iOS)
+    language.text(
+        "Token totals aren’t provided by this service on iOS. On Mac, ResetPls reads them from the local usage history.",
+        "Este servicio no proporciona los totales de tokens en iOS. En Mac, ResetPls los lee del histórico de uso local."
+    )
+    #else
     language.text(
         "Token history is unavailable. Add read-only access in Settings to restore token totals and estimated cost.",
         "El histórico de tokens no está disponible. Añade acceso de solo lectura en Ajustes para recuperar los tokens y el coste estimado."
     )
+    #endif
 }
 
 func tokenBreakdown(

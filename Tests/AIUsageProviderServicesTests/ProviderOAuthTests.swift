@@ -148,6 +148,29 @@ struct ProviderOAuthTests {
         #expect(snapshot.weekly.resetsAt == Date(timeIntervalSince1970: 1_790_082_000))
     }
 
+    @Test(arguments: [
+        #""2026-09-22T13:45:12Z""#,
+        #""2026-09-22T13:45:12.123456Z""#,
+        #""2026-09-22T15:45:12+02:00""#,
+        "1790082000", "1790082000000"
+    ])
+    func claudeResetSurvivesSupportedWireFormats(_ raw: String) throws {
+        let json = "{\"five_hour\":{\"utilization\":25,\"resets_at\":\(raw)}}"
+        let snapshot = try ClaudeDirectUsageNormalizer.snapshot(from: Data(json.utf8), observedAt: .now)
+        #expect(snapshot.session.resetsAt != nil)
+        #expect(snapshot.availabilityReset == snapshot.session.resetsAt)
+        #expect(snapshot.session.durationSeconds == 18_000)
+    }
+
+    @Test func claudeDoesNotInventAnAbsentResetOrTokenTotals() throws {
+        let snapshot = try ClaudeDirectUsageNormalizer.snapshot(
+            from: Data(#"{"five_hour":{"utilization":25,"resets_at":null},"seven_day":{"utilization":40}}"#.utf8),
+            observedAt: .now)
+        #expect(snapshot.session.usedPercent == 25)
+        #expect(snapshot.availabilityReset == nil)
+        #expect(snapshot.weeklyTotals == nil)
+    }
+
     @Test func claudeProfileRestoresConcretePlanNames() {
         let max = ClaudeProfileNormalizer.plan(
             from: Data(#"{"organization":{"organization_type":"claude_max","rate_limit_tier":"default_claude_max_20x"}}"#.utf8)
