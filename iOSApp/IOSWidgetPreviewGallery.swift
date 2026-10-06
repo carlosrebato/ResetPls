@@ -371,8 +371,11 @@ private struct SmallUsageWidgetPreview: View {
                 if state == .fresh {
                     Text("RESET 5d")
                         .font(.system(size: 6.5, weight: .semibold, design: .monospaced))
-                        .tracking(0.45)
+                        .tracking(0)
                         .foregroundStyle(UsageTheme.mutedText.opacity(0.85))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(width: 64)
                 }
             }
         }
@@ -457,7 +460,7 @@ private struct MediumUsageWidgetPreview: View {
                 .opacity(state == .staleFailed ? 0.5 : 1)
 
             HStack(spacing: 5) {
-                Text("RESETS")
+                Text("RESET")
                     .tracking(1)
                 Text(reset)
                     .monospacedDigit()
@@ -610,7 +613,7 @@ private struct LargeUsageWidgetPreview: View {
             UsageMeter(value: primary, severity: projection.severity, height: 5)
 
             HStack {
-                Text("RESETS \(reset)")
+                Text("RESET \(reset)")
                 Spacer()
                 if let secondaryWeekly {
                     Text("WEEK \(Int(secondaryWeekly))%")
@@ -700,7 +703,7 @@ private struct LargeSingleServiceWidgetPreview: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 5) {
-                    Text("RESETS IN")
+                    Text("RESET")
                         .font(.system(size: 7.5, weight: .bold))
                         .tracking(1.1)
                         .foregroundStyle(UsageTheme.mutedText)
@@ -977,7 +980,7 @@ private struct RectangularUsageWidgetPreview: View {
                     }
                 }
                 .frame(height: 5)
-                Text(spanishCopies ? "REINICIA 5d" : "RESETS 5d")
+                Text("RESET 5d")
                     .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.62))
             }

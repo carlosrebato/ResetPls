@@ -12,35 +12,49 @@ private struct UsageWidgetEntry: TimelineEntry {
 }
 
 enum WidgetProviderChoice: String, AppEnum {
-    case automatic
     case claude
     case codex
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Service")
     static let caseDisplayRepresentations: [Self: DisplayRepresentation] = [
-        .automatic: "First connected service",
         .claude: "Claude Code",
         .codex: "Codex"
     ]
 
-    var provider: UsageProviderID? {
+    var provider: UsageProviderID {
         switch self {
-        case .automatic: nil
         case .claude: .claude
         case .codex: .codex
         }
     }
+
+    static var firstDisplayed: Self {
+        let cached = UsageSnapshotCache().load()
+        let available = ProviderVisibilityPreferences.displayedProviders(cachedProviders: Set(cached.keys))
+        let first = ProviderOrderPreferences.ordered().first { available.contains($0) }
+            ?? ProviderOrderPreferences.ordered().first ?? .claude
+        return first == .codex ? .codex : .claude
+    }
+}
+
+struct WidgetServiceOptions: DynamicOptionsProvider {
+    func results() async throws -> [WidgetProviderChoice] {
+        ProviderOrderPreferences.ordered().map { $0 == .codex ? .codex : .claude }
+    }
+
+    func defaultResult() async -> WidgetProviderChoice? { .firstDisplayed }
 }
 
 struct ProviderWidgetIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Choose service"
     static let description = IntentDescription("Choose which service this widget displays.")
 
-    // WidgetKit must see the default in extracted parameter metadata. An
-    // optional dynamic parameter plus init() alone leaves first placement
-    // dependent on the intent-resolution process, before timelines can run.
-    @Parameter(title: "Service", default: .automatic)
+    // Keep a concrete metadata default so first placement never waits on an
+    // unset optional intent. Runtime resolution selects the first shown service.
+    @Parameter(title: "Service", default: .claude, optionsProvider: WidgetServiceOptions())
     var provider: WidgetProviderChoice
+
+    init() { provider = .firstDisplayed }
 
     static var parameterSummary: some ParameterSummary {
         Summary("Show \(\.$provider)")
@@ -49,8 +63,7 @@ struct ProviderWidgetIntent: WidgetConfigurationIntent {
 
 private struct UsageWidgetProvider: TimelineProvider {
     func placeholder(in context: Context) -> UsageWidgetEntry {
-        UsageWidgetEntry(date: .now, snapshots: Self.previewSnapshots,
-                         states: [.claude: .live, .codex: .live], history: Self.previewHistory)
+        entry(usePreviewIfEmpty: true)
     }
 
     func getSnapshot(in context: Context, completion: @escaping (UsageWidgetEntry) -> Void) {
@@ -64,12 +77,13 @@ private struct UsageWidgetProvider: TimelineProvider {
     }
 
     fileprivate func entry(usePreviewIfEmpty: Bool) -> UsageWidgetEntry {
+        let now = Date.now
         if usePreviewIfEmpty {
             return UsageWidgetEntry(
-                date: .now,
-                snapshots: Self.previewSnapshots,
+                date: now,
+                snapshots: Self.previewSnapshots(at: now),
                 states: [.claude: .live, .codex: .live],
-                history: Self.previewHistory
+                history: Self.previewHistory(at: now)
             )
         }
         let cached = UsageSnapshotCache().load()
@@ -89,23 +103,27 @@ private struct UsageWidgetProvider: TimelineProvider {
         )
     }
 
-    private static let previewSnapshots = [
+    // Build sample dates from the entry's clock, never a static process launch
+    // date. A reopened gallery must not turn the demo into a failed refresh.
+    // These synthetic live-state samples are only used by placeholder/snapshot
+    // previews, never by installed-widget timelines or the persisted cache.
+    private static func previewSnapshots(at now: Date) -> [ProviderUsageSnapshot] { [
         ProviderUsageSnapshot(
             id: .claude,
-            session: UsageWindow(usedPercent: 38, resetsAt: .now.addingTimeInterval(7_200)),
-            weekly: UsageWindow(usedPercent: 54, resetsAt: .now.addingTimeInterval(259_200)),
-            observedAt: .now, source: .mock, message: nil
+            session: UsageWindow(usedPercent: 38, resetsAt: now.addingTimeInterval(7_200), durationSeconds: 18_000),
+            weekly: UsageWindow(usedPercent: 54, resetsAt: now.addingTimeInterval(259_200), durationSeconds: 604_800),
+            observedAt: now, source: .live, message: nil
         ),
         ProviderUsageSnapshot(
             id: .codex,
             session: UsageWindow(usedPercent: nil, resetsAt: nil),
-            weekly: UsageWindow(usedPercent: 47, resetsAt: .now.addingTimeInterval(345_600)),
-            observedAt: .now, source: .mock, message: nil
+            weekly: UsageWindow(usedPercent: 47, resetsAt: now.addingTimeInterval(345_600), durationSeconds: 604_800),
+            observedAt: now, source: .live, message: nil
         )
-    ]
+    ] }
 
-    private static let previewHistory = UsageHistory(days: (-6...0).map { offset in
-        let date = Calendar.current.date(byAdding: .day, value: offset, to: .now)!
+    private static func previewHistory(at now: Date) -> UsageHistory { UsageHistory(days: (-6...0).map { offset in
+        let date = Calendar.current.date(byAdding: .day, value: offset, to: now)!
         let index = offset + 6
         return UsageHistoryDay(
             date: date,
@@ -113,7 +131,7 @@ private struct UsageWidgetProvider: TimelineProvider {
             codexPercent: [8, 19, 18, 31, 28, 22, 47][index],
             activity: true
         )
-    })
+    }) }
 }
 
 private struct ProviderWidgetTimelineProvider: AppIntentTimelineProvider {
@@ -247,10 +265,13 @@ private struct UsageWidgetView: View {
                     .font(.system(size: 7.5, weight: .bold))
                     .tracking(1.15)
                     .foregroundStyle(UsageTheme.mutedText)
-                Text("\(language.text("RESET", "REINICIA")) \(shortReset(snapshot))")
+                Text("RESET \(shortReset(snapshot))")
                     .font(.system(size: 6.5, weight: .semibold, design: .monospaced))
-                    .tracking(0.35)
+                    .tracking(0)
                     .foregroundStyle(UsageTheme.mutedText.opacity(0.85))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(width: 64)
             }
         }
         .frame(width: 88, height: 88)
@@ -311,7 +332,7 @@ private struct UsageWidgetView: View {
             .opacity(isStale(snapshot) ? 0.55 : 1)
 
             HStack(spacing: 5) {
-                Text(language.text("RESETS", "REINICIA")).tracking(0.85)
+                Text("RESET").tracking(0.85)
                 Text(shortReset(snapshot)).monospacedDigit()
                 Spacer(minLength: 3)
                 if snapshot.session.usedPercent != nil {
@@ -403,7 +424,7 @@ private struct UsageWidgetView: View {
             )
             .opacity(isStale(snapshot) ? 0.55 : 1)
             HStack(spacing: 5) {
-                Text("\(language.text("RESETS", "REINICIA")) \(shortReset(snapshot))")
+                Text("RESET \(shortReset(snapshot))")
                 Spacer(minLength: 4)
                 if snapshot.session.usedPercent != nil {
                     Text("\(language.text("WEEK", "SEM")) \(percent(snapshot.weekly.usedPercent))")
@@ -449,7 +470,7 @@ private struct UsageWidgetView: View {
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 5) {
-                    Text(language.text("RESETS IN", "REINICIA EN"))
+                    Text("RESET")
                         .font(.system(size: 7.5, weight: .bold))
                         .tracking(1.05)
                         .foregroundStyle(UsageTheme.mutedText)
@@ -592,7 +613,7 @@ private struct UsageWidgetView: View {
                 }
                 HStack(spacing: 8) {
                     accessoryMeter(snapshot)
-                    Text(actionLabel(for: snapshot.id) ?? "\(language.text("RESETS", "REINICIA")) \(shortReset(snapshot))")
+                    Text(actionLabel(for: snapshot.id) ?? "RESET \(shortReset(snapshot))")
                         .font(.system(size: 8.5, weight: .semibold, design: .monospaced))
                         .opacity(0.65)
                 }
