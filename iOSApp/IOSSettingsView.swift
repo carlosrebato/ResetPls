@@ -6,7 +6,6 @@ struct IOSSettingsView: View {
     @EnvironmentObject private var store: IOSUsageStore
     @Environment(\.dismiss) private var dismiss
     @AppStorage(AppLanguage.preferenceKey) private var language: AppLanguage = .english
-    @AppStorage("iosRefreshOnActivation") private var refreshOnActivation = true
 
     var body: some View {
         NavigationStack {
@@ -114,17 +113,6 @@ struct IOSSettingsView: View {
 
     private var preferencesSection: some View {
         settingsSection(language.text("Preferences", "Preferencias")) {
-            preferenceRow(
-                systemName: "arrow.triangle.2.circlepath",
-                title: language.text("Refresh on open", "Actualizar al abrir"),
-                subtitle: language.text(
-                    "Update limits when you return",
-                    "Actualiza los límites cuando vuelves"
-                ),
-                isOn: $refreshOnActivation
-            )
-
-            settingsDivider
             languageRow
         }
     }
@@ -292,27 +280,6 @@ struct IOSSettingsView: View {
             .font(.system(size: 10.5, weight: .bold))
             .tracking(1.7)
             .foregroundStyle(IOSSettingsPalette.faint)
-    }
-
-    private func preferenceRow(
-        systemName: String,
-        title: String,
-        subtitle: String,
-        isOn: Binding<Bool>
-    ) -> some View {
-        HStack(spacing: 13) {
-            settingsIcon(systemName)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title).settingsRowTitle()
-                Text(subtitle).settingsRowSubtitle()
-            }
-            Spacer(minLength: 10)
-            Toggle("", isOn: isOn)
-                .labelsHidden()
-                .tint(IOSSettingsPalette.accent)
-        }
-        .padding(.horizontal, 15)
-        .frame(minHeight: 68)
     }
 
     private var settingsDivider: some View {

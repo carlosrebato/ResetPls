@@ -7,7 +7,6 @@ import WidgetKit
 struct AIUsageIOSApp: App {
     @StateObject private var store = IOSUsageStore()
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage("iosRefreshOnActivation") private var refreshOnActivation = true
     @AppStorage("iosOnboardingCompleted") private var onboardingCompleted = false
 
     var body: some Scene {
@@ -32,8 +31,10 @@ struct AIUsageIOSApp: App {
                 scheduleBackgroundRefresh()
                 WidgetCenter.shared.reloadAllTimelines()
             }
-            guard phase == .active, refreshOnActivation else { return }
-            Task { await store.refresh(force: true) }
+            guard phase == .active else { return }
+            // Always check on return, but reuse recent shared observations and
+            // respect rate-limit backoff. Only the manual action forces a query.
+            Task { await store.refresh() }
         }
         .backgroundTask(.appRefresh("crbg.resetpls.refresh")) {
             await MainActor.run { scheduleBackgroundRefresh() }

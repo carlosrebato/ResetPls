@@ -72,23 +72,29 @@ struct IOSDashboardView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
+        HStack(alignment: .center, spacing: 10) {
             Spacer()
+
+            Button {
+                Task { await store.refresh(force: true) }
+            } label: {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(UsageTheme.secondaryText)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(store.isRefreshing)
+            .opacity(store.isRefreshing ? 0.45 : 1)
+            .accessibilityLabel(language.text("Refresh usage", "Actualizar uso"))
+            .accessibilityHint(language.text("Updates the service limits", "Actualiza los límites de los servicios"))
 
             VStack(alignment: .trailing, spacing: 2) {
                 Text(now, style: .time)
                     .font(.system(size: 15, weight: .semibold, design: .monospaced))
                     .foregroundStyle(UsageTheme.primaryText)
-                Button {
-                    Task { await store.refresh(force: true) }
-                } label: {
-                    freshnessLine
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .disabled(store.isRefreshing)
-                .accessibilityLabel(language.text("Refresh usage", "Actualizar uso"))
-                .accessibilityHint(language.text("Double tap to update", "Toca dos veces para actualizar"))
+                freshnessLine
             }
         }
     }
@@ -131,9 +137,6 @@ struct IOSDashboardView: View {
                     Image(systemName: freshness.kind == .cached ? "clock.fill" : "checkmark")
                         .font(.system(size: 7.5, weight: .bold))
                         .foregroundStyle(freshness.kind == .cached ? UsageTheme.cached.opacity(0.82) : UsageTheme.green.opacity(0.72))
-                    Image(systemName: "hand.tap")
-                        .font(.system(size: 7.5, weight: .medium))
-                        .foregroundStyle(UsageTheme.mutedText.opacity(0.4))
                 }
                 .font(.system(size: 10.5, weight: .medium))
                 .accessibilityElement(children: .combine)

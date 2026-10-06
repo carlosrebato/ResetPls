@@ -7,6 +7,31 @@ import XCTest
 
 @MainActor
 final class IOSUsageStoreTests: XCTestCase {
+    func testReturnReusesFreshBackgroundObservationAndManualRefreshStillWorks() async throws {
+        let fixture = try Fixture()
+        let now = Date.now
+        func reading(_ provider: UsageProviderID) -> ProviderUsageSnapshot {
+            ProviderUsageSnapshot(id: provider,
+                session: UsageWindow(usedPercent: 25, resetsAt: now.addingTimeInterval(7200)),
+                weekly: UsageWindow(usedPercent: 40, resetsAt: nil),
+                observedAt: now, source: .live, message: nil)
+        }
+        let claude = StubAdapter(provider: .claude, result: .success(reading(.claude)))
+        let codex = StubAdapter(provider: .codex, result: .success(reading(.codex)))
+        let background = SharedUsageRefresh(claude: claude, codex: codex,
+            cache: fixture.cache, historyCache: fixture.historyCache)
+        _ = try await background.refresh(context: "background")
+        let store = IOSUsageStore(claude: claude, codex: codex,
+            cache: fixture.cache, historyCache: fixture.historyCache)
+        await store.refresh()
+        let automaticCalls = await claude.fetchCount()
+        XCTAssertEqual(automaticCalls, 1)
+        XCTAssertEqual(store.states[.claude], .live)
+        XCTAssertEqual(store.snapshots.first { $0.id == .claude }?.source, .live)
+        await store.refresh(force: true)
+        let manualCalls = await claude.fetchCount()
+        XCTAssertEqual(manualCalls, 2)
+    }
     func testDiagnosticExportsResetWithoutPrivateMessages() throws {
         let fixture = try Fixture()
         let now = Date(timeIntervalSince1970: 1_790_000_000)
@@ -251,6 +276,7 @@ final class IOSUsageStoreTests: XCTestCase {
 private actor StubAdapter: DirectUsageAdapter {
     nonisolated let providerID: UsageProviderID
     private let result: Result<ProviderUsageSnapshot, Error>
+    private var calls = 0
 
     init(provider: UsageProviderID, result: Result<ProviderUsageSnapshot, Error>) {
         providerID = provider
@@ -258,8 +284,10 @@ private actor StubAdapter: DirectUsageAdapter {
     }
 
     func fetchSnapshot() async throws -> ProviderUsageSnapshot {
-        try result.get()
+        calls += 1
+        return try result.get()
     }
+    func fetchCount() -> Int { calls }
 }
 
 private final class Fixture {
