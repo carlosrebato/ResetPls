@@ -190,9 +190,16 @@ public final class UsageStore: ObservableObject {
         var receivedLiveData = false
         var authenticationStateChanged = false
         var snapshotsNeedingMetrics: [ProviderUsageSnapshot] = []
+        let evidenceCache = UsageRefreshEvidenceCache(fileURL: cache.fileURL.deletingLastPathComponent()
+            .appendingPathComponent("refresh-evidence.json"))
+        var refreshEvidence = evidenceCache.load()
         for outcome in outcomes {
             switch outcome.value {
             case .success(let snapshot):
+                if snapshot.source == .live {
+                    refreshEvidence[outcome.providerID] = UsageRefreshEvidence(attemptedAt: refreshStartedAt,
+                        succeededAt: snapshot.observedAt, context: "mac")
+                }
                 // Connector snapshots only contain quota windows. Keep the last
                 // successfully indexed local totals until a newer metrics scan
                 // replaces them; a transient bookmark/indexing failure must not
@@ -215,6 +222,9 @@ public final class UsageStore: ObservableObject {
                 receivedLiveData = receivedLiveData || snapshot.source == .live
                 snapshotsNeedingMetrics.append(snapshot)
             case .failure(let error, let message, let retryAfter):
+                refreshEvidence[outcome.providerID] = UsageRefreshEvidence(attemptedAt: refreshStartedAt,
+                    succeededAt: refreshEvidence[outcome.providerID]?.succeededAt, failedAt: .now,
+                    context: "mac", errorCode: "request_failed")
                 let existing = snapshots.first { $0.id == outcome.providerID }
                 let requiresSignIn: Bool
                 switch error {
@@ -286,6 +296,7 @@ public final class UsageStore: ObservableObject {
             }
         }
 
+        if !outcomes.isEmpty { try? evidenceCache.save(refreshEvidence) }
         if receivedLiveData || authenticationStateChanged {
             try? cache.save(snapshots)
             if receivedLiveData,

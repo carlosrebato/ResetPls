@@ -50,3 +50,16 @@ widget with the app in background and export its diagnostic if readings stall.
 Unrelated limitations from 51 remain: actual missing reset needs the device
 diagnostic, direct iOS APIs do not supply local token history, and explicit widget
 service-selection rendering still needs the user's real-device test.
+
+## Verification results (2026-10-06)
+
+- Shared/provider package: 22 tests passed, including seven new refresh tests.
+- Mac/core/design package: 146 tests passed; existing Mac polling tests remain green.
+- iOS: 11 tests passed on ResetPls · Codex Widgets, iPhone 17 Pro / iOS 26.5.
+- Mac app/widget Release compilation passed. Mac now writes the same allowlisted
+  refresh evidence on actual connector outcomes, without changing its polling.
+- Final device archive: /private/tmp/ResetPls-iOS-52-final.xcarchive, app and
+  extension 0.1.7 (52). Its plist has fetch mode and permitted task identifier as
+  arrays; its extension signature includes the existing app keychain group.
+- These checks are compilation/automated integration verification, not a claim
+  that real iPhone background scheduling or account refresh has been observed.
