@@ -1,4 +1,7 @@
 import AIUsageCore
+#if os(iOS)
+import AIUsageProviderServices
+#endif
 import AIUsageDesignSystem
 import AppIntents
 import OSLog
@@ -10,6 +13,7 @@ private struct UsageWidgetEntry: TimelineEntry {
     let snapshots: [ProviderUsageSnapshot]
     let states: [UsageProviderID: ProviderDataState]
     let history: UsageHistory
+    var refreshEvidence: [UsageProviderID: UsageRefreshEvidence] = [:]
 }
 
 enum WidgetProviderChoice: String, AppEnum {
@@ -54,10 +58,18 @@ private struct UsageWidgetProvider: TimelineProvider {
         completion(entry(usePreviewIfEmpty: context.isPreview))
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<UsageWidgetEntry>) -> Void) {
+    func getTimeline(in context: Context, completion: @escaping @Sendable (Timeline<UsageWidgetEntry>) -> Void) {
+        #if os(iOS)
+        Task {
+            _ = try? await SharedUsageRefresh.shared.refresh(context: "widget")
+            let entry = entry(usePreviewIfEmpty: false)
+            completion(Timeline(entries: [entry], policy: .after(entry.date.addingTimeInterval(900))))
+        }
+        #else
         let entry = entry(usePreviewIfEmpty: false)
         let nextRefresh = Calendar.current.date(byAdding: .minute, value: 15, to: entry.date)!
         completion(Timeline(entries: [entry], policy: .after(nextRefresh)))
+        #endif
     }
 
     fileprivate func entry(usePreviewIfEmpty: Bool) -> UsageWidgetEntry {
@@ -83,7 +95,8 @@ private struct UsageWidgetProvider: TimelineProvider {
             date: .now,
             snapshots: snapshots,
             states: states,
-            history: UsageHistoryCache().load()
+            history: UsageHistoryCache().load(),
+            refreshEvidence: UsageRefreshEvidenceCache().load()
         )
     }
 
@@ -128,6 +141,9 @@ private struct ProviderWidgetTimelineProvider: AppIntentTimelineProvider {
     }
 
     func timeline(for configuration: ProviderWidgetIntent, in context: Context) async -> Timeline<UsageWidgetEntry> {
+        #if os(iOS)
+        _ = try? await SharedUsageRefresh.shared.refresh(context: "widget")
+        #endif
         Logger(subsystem: "crbg.resetpls.widgets", category: "configuration")
             .notice("Widget service: \(configuration.provider?.rawValue ?? "unset", privacy: .public)")
         let entry = configuredEntry(for: resolvedProvider(configuration.provider), usePreviewIfEmpty: false)
@@ -144,7 +160,8 @@ private struct ProviderWidgetTimelineProvider: AppIntentTimelineProvider {
             date: base.date,
             snapshots: base.snapshots.filter { $0.id == provider },
             states: base.states,
-            history: base.history
+            history: base.history,
+            refreshEvidence: base.refreshEvidence
         )
     }
 
@@ -681,7 +698,9 @@ private struct UsageWidgetView: View {
                 .font(.system(size: 7.5, weight: .bold))
                 .tracking(0.45)
         }
-        .foregroundStyle(isStale(snapshot) ? UsageTheme.cached : UsageTheme.green.opacity(0.9))
+        .foregroundStyle(isStale(snapshot)
+            ? (refreshDisposition(snapshot) == .failed ? UsageTheme.cached : UsageTheme.mutedText)
+            : UsageTheme.green.opacity(0.9))
         .fixedSize()
     }
 
@@ -752,14 +771,18 @@ private struct UsageWidgetView: View {
 
     private func statusText(_ snapshot: ProviderUsageSnapshot) -> String? {
         if let action = actionLabel(for: snapshot.id) { return action }
-        if isStale(snapshot) {
+        if refreshDisposition(snapshot) == .failed {
             return language.text("UPDATE FAILED · OPEN APP", "FALLO AL ACTUALIZAR · ABRE LA APP")
+        }
+        if refreshDisposition(snapshot) == .saved {
+            return language.text("LAST SAVED DATA · OPEN APP TO UPDATE", "DATOS GUARDADOS · ABRE LA APP PARA ACTUALIZAR")
         }
         return snapshot.preferredPaceNotice(at: entry.date).map(language.paceNoticeText)
     }
 
     private func statusColor(_ snapshot: ProviderUsageSnapshot) -> Color {
-        if actionLabel(for: snapshot.id) != nil || isStale(snapshot) { return UsageTheme.cached }
+        if actionLabel(for: snapshot.id) != nil || refreshDisposition(snapshot) == .failed { return UsageTheme.cached }
+        if isStale(snapshot) { return UsageTheme.mutedText }
         switch snapshot.preferredPaceNotice(at: entry.date) {
         case .weekly(let risk):
             guard snapshot.primaryQuotaID == .weekly else { return UsageTheme.mutedText }
@@ -790,6 +813,10 @@ private struct UsageWidgetView: View {
 
     private func isStale(_ snapshot: ProviderUsageSnapshot) -> Bool {
         snapshot.source == .cached || snapshot.isStale(at: entry.date)
+    }
+
+    private func refreshDisposition(_ snapshot: ProviderUsageSnapshot) -> UsageRefreshDisposition {
+        snapshot.refreshDisposition(evidence: entry.refreshEvidence[snapshot.id], at: entry.date)
     }
 
     private func shortReset(_ snapshot: ProviderUsageSnapshot) -> String {

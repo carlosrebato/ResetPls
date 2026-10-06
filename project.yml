@@ -17,7 +17,7 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    CURRENT_PROJECT_VERSION: 50
+    CURRENT_PROJECT_VERSION: 52
     MARKETING_VERSION: 0.1.7
     AI_USAGE_APP_BUNDLE_ID: com.example.aiusage
     AI_USAGE_WIDGET_BUNDLE_ID: $(AI_USAGE_APP_BUNDLE_ID).widgets
@@ -109,6 +109,18 @@ targets:
   AIUsageIOS:
     type: application
     platform: iOS
+    info:
+      path: Configurations/AIUsageIOS-Info.plist
+      properties:
+        CFBundleDisplayName: ResetPls
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        AIUsageAppGroup: $(AI_USAGE_APP_GROUP)
+        ITSAppUsesNonExemptEncryption: false
+        UIBackgroundModes:
+          - fetch
+        BGTaskSchedulerPermittedIdentifiers:
+          - crbg.resetpls.refresh
     sources:
       - path: iOSApp
       - path: App/Assets.xcassets
@@ -167,11 +179,15 @@ targets:
         product: AIUsageCore
       - package: AIUsageKit
         product: AIUsageDesignSystem
+      - package: AIUsageKit
+        product: AIUsageProviderServices
     entitlements:
       path: Configurations/AIUsageIOSWidgets.entitlements
       properties:
         com.apple.security.application-groups:
           - $(AI_USAGE_APP_GROUP)
+        keychain-access-groups:
+          - $(AppIdentifierPrefix)$(AI_USAGE_IOS_BUNDLE_ID)
     settings:
       base:
         DEVELOPMENT_TEAM: 467CC6L4BF
