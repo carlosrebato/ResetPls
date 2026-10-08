@@ -268,7 +268,7 @@ struct SettingsView: View {
                     .padding(.top, 4)
                 }
 
-                if presentation.isConnected && needsTokenHistoryAccess(provider) {
+                if presentation.isConnected {
                     if tokenHistoryProvider == provider {
                         ProgressView()
                             .controlSize(.small)
@@ -276,8 +276,8 @@ struct SettingsView: View {
                             .padding(.top, 5)
                     } else {
                         Button(language.text(
-                            "Add token history",
-                            "Añadir histórico de tokens"
+                            "Review local history access…",
+                            "Revisar acceso al histórico local…"
                         )) {
                             Task { await addTokenHistory(for: provider) }
                         }
@@ -375,7 +375,12 @@ struct SettingsView: View {
 
     private func tokenHistoryExplanation(for provider: UsageProviderID) -> String {
         let tool = provider == .claude ? "Claude Code" : "Codex CLI"
-        return language.text(
+        let available = store.snapshots.first { $0.id == provider }?.weeklyTotals != nil
+        let status = !needsTokenHistoryAccess(provider)
+            ? (available ? language.text("Local history: available. ", "Histórico local: disponible. ")
+                         : language.text("Local history: no token data. ", "Histórico local: sin datos de tokens. "))
+            : language.text("Local history: access required. ", "Histórico local: requiere acceso. ")
+        return status + language.text(
             "Optional · reads \(tool) files on this Mac for token history and estimated cost. Live limits work without it.",
             "Opcional · lee los archivos de \(tool) de este Mac para el histórico de tokens y el coste estimado. Los límites funcionan sin ello."
         )
@@ -388,7 +393,7 @@ struct SettingsView: View {
         defer { tokenHistoryProvider = nil }
         do {
             guard try await ProviderDataAccessPicker.requestAccess(for: provider) else { return }
-            await store.refreshWhenIdle(force: true, allowInteraction: false)
+            await store.refreshLocalHistory(for: provider)
         } catch {
             tokenHistoryErrors[provider] = error.localizedDescription
         }

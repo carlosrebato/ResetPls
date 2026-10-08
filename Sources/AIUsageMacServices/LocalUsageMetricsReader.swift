@@ -2,6 +2,7 @@ import AIUsageCore
 import Foundation
 
 public protocol LocalUsageMetricsReading: Sendable {
+    func invalidateLocalHistory(for provider: UsageProviderID) async
     func weeklyTotals(
         for provider: UsageProviderID,
         periodStart: Date,
@@ -22,6 +23,7 @@ public protocol LocalUsageMetricsReading: Sendable {
 }
 
 public extension LocalUsageMetricsReading {
+    func invalidateLocalHistory(for _: UsageProviderID) async {}
     func activityDates(
         for _: UsageProviderID,
         periodStart _: Date,
@@ -247,6 +249,12 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
             )
         }
         return aggregate
+    }
+
+    public func invalidateLocalHistory(for provider: UsageProviderID) async {
+        lastRefresh.removeValue(forKey: provider)
+        weeklyCache.removeValue(forKey: provider)
+        dailyCache.removeValue(forKey: provider)
     }
 
     private func refreshIndexIfNeeded(for provider: UsageProviderID) {

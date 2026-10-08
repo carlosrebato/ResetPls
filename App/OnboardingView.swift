@@ -326,10 +326,6 @@ struct OnboardingView: View {
     private func managementProviderCard(_ provider: UsageProviderID) -> some View {
         let state = cardState(for: provider)
         let connected = store.connectionStatuses.first { $0.id == provider }?.isConnected == true
-        let needsTokenHistoryAccess = connected
-            && !ProviderDataAccess.shared.hasUsableAccess(
-                for: metricsDirectory(for: provider)
-            )
 
         return HStack(spacing: isOnboarding ? 14 : 8) {
             if !isOnboarding {
@@ -364,6 +360,13 @@ struct OnboardingView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .padding(.leading, state.indicator == .busy ? 0 : 15)
+                if connected && !isOnboarding {
+                    Text(localHistoryStatus(for: provider))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(SettingsPalette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.leading, 15)
+                }
             }
 
             Spacer(minLength: isOnboarding ? 8 : 4)
@@ -383,10 +386,10 @@ struct OnboardingView: View {
                         }
                     }
 
-                    if needsTokenHistoryAccess, let actionTitle = state.actionTitle {
+                    if connected, let actionTitle = state.actionTitle {
                         Menu {
                             Button(actionTitle) { performAction(for: provider) }
-                            Button(language.text("Add local history…", "Añadir histórico local…")) {
+                            Button(language.text("Review local history access…", "Revisar acceso al histórico local…")) {
                                 Task { await connectTokenHistory(provider) }
                             }
                         } label: {
@@ -820,7 +823,7 @@ struct OnboardingView: View {
         defer { busyProvider = nil }
         do {
             guard try await ProviderDataAccessPicker.requestAccess(for: provider) else { return }
-            await store.refreshWhenIdle(force: true, allowInteraction: false)
+            await store.refreshLocalHistory(for: provider)
         } catch {
             accessError = error.localizedDescription
         }
@@ -828,6 +831,16 @@ struct OnboardingView: View {
 
     private func metricsDirectory(for provider: UsageProviderID) -> ProviderDataDirectory {
         provider == .claude ? .claudeCode : .codex
+    }
+
+    private func localHistoryStatus(for provider: UsageProviderID) -> String {
+        guard ProviderDataAccess.shared.hasUsableAccess(for: metricsDirectory(for: provider)) else {
+            return language.text("Local history: access required", "Histórico local: requiere acceso")
+        }
+        let hasTokens = store.snapshots.first { $0.id == provider }?.weeklyTotals != nil
+        return hasTokens
+            ? language.text("Local history: available", "Histórico local: disponible")
+            : language.text("Local history: no token data", "Histórico local: sin datos de tokens")
     }
 
     private func dataDirectory(for provider: UsageProviderID) -> ProviderDataDirectory {

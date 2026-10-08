@@ -4,6 +4,24 @@ import Testing
 @testable import AIUsageMacServices
 
 struct LocalUsageMetricsReaderTests {
+    @Test func reviewingHistoryAccessBypassesTheFifteenMinuteScanCache() async throws {
+        let home = temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let file = home.appendingPathComponent(".claude/projects/demo/session.jsonl")
+        try writeLines([claudeLine(messageID: "first")], to: file)
+        let reader = LocalUsageMetricsReader(homeDirectory: home, refreshInterval: 900)
+        let start = date("2026-07-20T00:00:00Z")
+        let end = date("2026-07-24T00:00:00Z")
+        let initial = await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
+        #expect(initial?.totalTokens == 1_350)
+        try writeLines([claudeLine(messageID: "first"), claudeLine(messageID: "second")], to: file)
+        let stale = await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
+        #expect(stale?.totalTokens == 1_350)
+        await reader.invalidateLocalHistory(for: .claude)
+        let refreshed = await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
+        #expect(refreshed?.totalTokens == 2_700)
+    }
+
     @Test(
         "Índice incremental real",
         .enabled(if: ProcessInfo.processInfo.environment["RUN_LOCAL_METRICS_BENCHMARK"] == "1")
