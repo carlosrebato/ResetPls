@@ -42,7 +42,7 @@ These are not documented third-party integration APIs. Do not represent them
 as official ResetPls integrations or claim provider authorization we do not have.
 
 Support: https://github.com/carlosrebato/ResetPls#readme
-Privacy: https://github.com/carlosrebato/ResetPls/blob/main/PRIVACY.md
+Privacy: https://resetpls.app/privacy/ (English), https://resetpls.app/es/privacy/ (Spanish)
 
 ## Submission gates
 

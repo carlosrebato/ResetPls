@@ -9,7 +9,9 @@ npm --prefix landing run build
 
 Preview: http://127.0.0.1:4173. Static output: `landing/dist`.
 
-Source, privacy and issue-report links point to `carlosrebato/ResetPls`.
+Source and issue-report links point to `carlosrebato/ResetPls`. Privacy is hosted
+at `https://resetpls.app/privacy/` (English) and `/es/privacy/` (Spanish). Both
+pages are built by Vite and work without JavaScript or an account.
 Mac downloads use the signed `ResetPls` releases, as does the new Sparkle feed.
 See `../docs/project-links.md`.
 

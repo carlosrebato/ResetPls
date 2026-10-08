@@ -1,5 +1,10 @@
 # Privacy
 
+Published policies: [English](https://resetpls.app/privacy/) ·
+[Español](https://resetpls.app/es/privacy/). The website also explains hosting,
+voluntary diagnostic sharing and local-data controls. The notes below describe
+the app's technical data handling.
+
 ResetPls is a local-first Mac and iOS utility. It does not operate an account
 server and does not send conversation content, credentials or usage history to
 the project maintainers.
