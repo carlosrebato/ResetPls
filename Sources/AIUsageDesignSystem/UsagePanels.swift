@@ -531,12 +531,19 @@ public struct UsageTrendFooter: View {
         let visibleCount = min(count, 15)
 
         return VStack(spacing: compact ? 6 : 11) {
-            HStack(alignment: .firstTextBaseline, spacing: compact ? 6 : 8) {
-                Text(hasEvidence ? String(count) : "—")
-                    .font(.system(size: compact ? 21 : 28, weight: .bold))
-                    .tracking(-0.8)
-                    .monospacedDigit()
-                    .foregroundStyle(UsageTheme.green)
+            HStack(alignment: hasEvidence ? .firstTextBaseline : .center, spacing: compact ? 6 : 8) {
+                if hasEvidence {
+                    Text(String(count))
+                        .font(.system(size: compact ? 21 : 28, weight: .bold))
+                        .tracking(-0.8)
+                        .monospacedDigit()
+                        .foregroundStyle(UsageTheme.green)
+                } else {
+                    Rectangle()
+                        .fill(UsageTheme.green)
+                        .frame(width: compact ? 21 : 28, height: compact ? 3 : 4)
+                        .accessibilityLabel(language.text("No streak data", "Sin datos de racha"))
+                }
                 Text(language.text("DAY STREAK", "RACHA DIARIA"))
                     .font(.system(size: compact ? 8 : 9, weight: .semibold))
                     .tracking(1.15)
