@@ -36,11 +36,13 @@
 		97836EB50E65150676A524C7 /* AIUsageCore in Frameworks */ = {isa = PBXBuildFile; productRef = 09B63A6F0455DCE533043224 /* AIUsageCore */; };
 		99CA125DCD0C9140B327A1BE /* AppPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 467D89BE150B861D10E8C014 /* AppPreferences.swift */; };
 		9CCB09B60326A086B1C9AF36 /* ClaudeDesktopAccessPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E807D698482110899B3D06D /* ClaudeDesktopAccessPicker.swift */; };
+		A4E4C9197B484B20A2669BB4 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D8844BC471D00DAE4CA07A4F /* PrivacyInfo.xcprivacy */; };
 		A5F0EC474D33A2481EF64CEE /* AIUsageCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1CC39A105434D411E1B3D4AA /* AIUsageCore */; };
 		B4E36E5543601BA79A58A24E /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBEB9DBCAD3BB4D03259BD97 /* MenuBarView.swift */; };
 		C51AABB15C27D0E4D3ACC15D /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BA2A443BF3B5552C6D5E824 /* OnboardingView.swift */; };
 		D9FBA7BA6327E5397AE22D4A /* AIUsageDesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = 8AD8F1C4541EFE2DE1DEA26F /* AIUsageDesignSystem */; };
 		E4A25972516BFE561065BA82 /* AIUsageIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 682E2BB9E803FB0662BAA680 /* AIUsageIOSApp.swift */; };
+		E8D2C977E092BAE52914A06E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = D8844BC471D00DAE4CA07A4F /* PrivacyInfo.xcprivacy */; };
 		EFB4D7CBC5D68457948A079D /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26BC9C6C2BB3A2D8E8AD2508 /* SettingsView.swift */; };
 		EFE51029B4D44455573FCACF /* IOSSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A999A4C7A2104EEE2BA59ABC /* IOSSettingsView.swift */; };
 /* End PBXBuildFile section */
@@ -105,7 +107,7 @@
 		467D89BE150B861D10E8C014 /* AppPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPreferences.swift; sourceTree = "<group>"; };
 		4B1175E44064FA3670635D17 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
 		53233494284243616896D95E /* IOSWidgetPreviewGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSWidgetPreviewGallery.swift; sourceTree = "<group>"; };
-		4FAF828CA63CEF6212AE1E86 /* resetpls-widget-verification-50 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "resetpls-widget-verification-50"; path = .; sourceTree = SOURCE_ROOT; };
+		5388CAA3C05A6BC5B620F012 /* resetpls-local-history-fix-20261008 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "resetpls-local-history-fix-20261008"; path = .; sourceTree = SOURCE_ROOT; };
 		682E2BB9E803FB0662BAA680 /* AIUsageIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsageIOSApp.swift; sourceTree = "<group>"; };
 		6E807D698482110899B3D06D /* ClaudeDesktopAccessPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeDesktopAccessPicker.swift; sourceTree = "<group>"; };
 		7A8C5B96141520571B022EA1 /* ClaudeBrowserLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeBrowserLogin.swift; sourceTree = "<group>"; };
@@ -118,6 +120,7 @@
 		A999A4C7A2104EEE2BA59ABC /* IOSSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSSettingsView.swift; sourceTree = "<group>"; };
 		B074A93DB7C6710897C43BA9 /* AIUsageWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = AIUsageWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		CBEB9DBCAD3BB4D03259BD97 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		D8844BC471D00DAE4CA07A4F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		DB562CA2D1EE582B8E28475E /* AIUsageIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AIUsageIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		F17790B1FDFFFA95070A3874 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -167,10 +170,19 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		10325ADEFE334735DEA3969C /* Configurations */ = {
+			isa = PBXGroup;
+			children = (
+				D8844BC471D00DAE4CA07A4F /* PrivacyInfo.xcprivacy */,
+			);
+			path = Configurations;
+			sourceTree = "<group>";
+		};
 		1A9B208FA40296A655AEFA28 = {
 			isa = PBXGroup;
 			children = (
 				A9FA2B59CCABD9EE4380E95A /* App */,
+				10325ADEFE334735DEA3969C /* Configurations */,
 				DEBBC315008175BA9CA47545 /* iOSApp */,
 				2F21E0CA0BB2DE8A6B7BB5C8 /* iOSAppTests */,
 				65C9F6C49F90B59D7DAD9264 /* Packages */,
@@ -198,7 +210,7 @@
 		65C9F6C49F90B59D7DAD9264 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				4FAF828CA63CEF6212AE1E86 /* resetpls-widget-verification-50 */,
+				5388CAA3C05A6BC5B620F012 /* resetpls-local-history-fix-20261008 */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -316,6 +328,7 @@
 			buildConfigurationList = 8F75844007E99E4C56DC4A1F /* Build configuration list for PBXNativeTarget "AIUsageIOSWidgets" */;
 			buildPhases = (
 				5C664C88116CD687354AD6DE /* Sources */,
+				E2434566D88CA926DD841141 /* Resources */,
 				6478C28190C8094851760777 /* Frameworks */,
 			);
 			buildRules = (
@@ -428,6 +441,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				3ED411F22D15967C1C97CE9F /* Assets.xcassets in Resources */,
+				A4E4C9197B484B20A2669BB4 /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E2434566D88CA926DD841141 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E8D2C977E092BAE52914A06E /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -654,7 +676,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -849,7 +871,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 52;
+				CURRENT_PROJECT_VERSION = 53;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;

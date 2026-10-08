@@ -7,6 +7,87 @@ import XCTest
 
 @MainActor
 final class IOSUsageStoreTests: XCTestCase {
+    func testDemoDoesNotFetchOrOverwriteRealCacheAndRestoresAccounts() async throws {
+        let fixture = try Fixture()
+        let real = Self.snapshot(provider: .claude, percent: 19, source: .live)
+        try fixture.cache.save([real])
+        try fixture.statusCache.save([.claude: .live, .codex: .setupRequired])
+        _ = try fixture.historyCache.recording([real], at: real.observedAt)
+        let savedHistory = fixture.historyCache.load()
+        let claude = StubAdapter(provider: .claude, result: .success(real))
+        let codex = StubAdapter(provider: .codex, result: .failure(DirectUsageError.notAuthenticated))
+        let store = IOSUsageStore(claude: claude, codex: codex,
+            cache: fixture.cache, historyCache: fixture.historyCache, statusCache: fixture.statusCache)
+        store.setDemoMode(true)
+        XCTAssertTrue(store.isDemoMode)
+        XCTAssertEqual(store.snapshots.count, 2)
+        XCTAssertTrue(store.snapshots.allSatisfy { $0.source == .mock })
+        await store.refresh(force: true)
+        await store.refreshIfDue(at: .now)
+        await store.signIn(.claude) { XCTFail("Demo must not authenticate") }
+        await store.signOut(.claude)
+        let claudeCalls = await claude.fetchCount()
+        let codexCalls = await codex.fetchCount()
+        XCTAssertEqual(claudeCalls, 0)
+        XCTAssertEqual(codexCalls, 0)
+        XCTAssertEqual(fixture.cache.load()[.claude], real)
+        XCTAssertEqual(fixture.historyCache.load(), savedHistory)
+        XCTAssertEqual(fixture.statusCache.load()[.claude]?.state, .live)
+        store.setDemoMode(false)
+        XCTAssertFalse(store.isDemoMode)
+        XCTAssertEqual(store.snapshots.first?.session.usedPercent, 19)
+        XCTAssertEqual(store.snapshots.first?.source, .cached)
+        XCTAssertEqual(store.states[.claude], .live)
+        XCTAssertEqual(store.history, savedHistory)
+        await store.refresh()
+        let callsAfterExit = await claude.fetchCount()
+        XCTAssertEqual(callsAfterExit, 1)
+    }
+
+    func testDemoExitWithoutAccountsRestoresEmptyState() throws {
+        let fixture = try Fixture()
+        let store = IOSUsageStore(cache: fixture.cache, historyCache: fixture.historyCache,
+                                  statusCache: fixture.statusCache)
+        store.setDemoMode(true)
+        store.setDemoMode(false)
+        XCTAssertTrue(store.snapshots.isEmpty)
+        XCTAssertEqual(store.states[.claude], .setupRequired)
+        XCTAssertEqual(store.states[.codex], .setupRequired)
+        XCTAssertEqual(store.history, fixture.historyCache.load())
+    }
+
+    func testDemoCannotReplaceAnInFlightSignIn() async throws {
+        let fixture = try Fixture()
+        let store = IOSUsageStore(cache: fixture.cache, historyCache: fixture.historyCache,
+                                  statusCache: fixture.statusCache)
+        await store.signIn(.claude) {
+            store.setDemoMode(true)
+            XCTAssertFalse(store.isDemoMode)
+            throw CancellationError()
+        }
+        XCTAssertFalse(store.isDemoMode)
+        XCTAssertTrue(store.authenticatingProviders.isEmpty)
+    }
+
+    func testPrivacyManifestIsEmbeddedInAppAndWidget() throws {
+        let app = Bundle.main.bundleURL
+        let plugins = try FileManager.default.contentsOfDirectory(
+            at: app.appendingPathComponent("PlugIns"), includingPropertiesForKeys: nil)
+        let widget = try XCTUnwrap(plugins.first { $0.pathExtension == "appex" })
+        for bundle in [app, widget] {
+            let data = try Data(contentsOf: bundle.appendingPathComponent("PrivacyInfo.xcprivacy"))
+            let manifest = try XCTUnwrap(PropertyListSerialization.propertyList(
+                from: data, format: nil) as? [String: Any])
+            XCTAssertEqual(manifest["NSPrivacyTracking"] as? Bool, false)
+            let apis = try XCTUnwrap(manifest["NSPrivacyAccessedAPITypes"] as? [[String: Any]])
+            let defaults = try XCTUnwrap(apis.first {
+                $0["NSPrivacyAccessedAPIType"] as? String == "NSPrivacyAccessedAPICategoryUserDefaults"
+            })
+            XCTAssertEqual(Set(defaults["NSPrivacyAccessedAPITypeReasons"] as? [String] ?? []),
+                           ["CA92.1", "1C8F.1"])
+        }
+    }
+
     func testReturnReusesFreshBackgroundObservationAndManualRefreshStillWorks() async throws {
         let fixture = try Fixture()
         let now = Date.now
