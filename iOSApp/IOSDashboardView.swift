@@ -120,7 +120,11 @@ struct IOSDashboardView: View {
 
     @ViewBuilder
     private var freshnessLine: some View {
-        if store.isRefreshing {
+        if store.isDemoMode {
+            Text(language.text("Demo data", "Datos de demo"))
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(UsageTheme.mock)
+        } else if store.isRefreshing {
             Text(language.text("Updating…", "Actualizando…"))
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(UsageTheme.mutedText)
@@ -367,6 +371,15 @@ struct IOSOnboardingView: View {
                             .opacity(canContinue ? 1 : 0.42)
                     }
                     .padding(.top, 24)
+
+                    Button(language.text("Explore demo", "Explorar demo")) {
+                        store.setDemoMode(true)
+                        finish()
+                    }
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(UsageTheme.secondaryText)
+                    .disabled(store.isRefreshing || !store.authenticatingProviders.isEmpty)
+                    .padding(.top, 20)
 
                     Spacer(minLength: 34)
                 }
