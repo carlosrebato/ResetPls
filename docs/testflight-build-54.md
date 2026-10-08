@@ -18,5 +18,7 @@
 - Actual image renders are text-recognized in English and Spanish: TOKENS is
   absent on iOS and retained on Mac. Provider names remain readable in the test.
 - Release archive succeeded at `/private/tmp/ResetPls-iOS-54.xcarchive`.
-- Upload/processing/tester availability must be recorded separately. Physical
-  iPhone checks and completing the App Store Connect listing remain outstanding.
+- Upload completed at 15:31 CEST: `Upload succeeded` / `EXPORT SUCCEEDED`.
+  Apple reported `Uploaded package is processing`. Tester availability is not
+  yet confirmed. Physical iPhone checks and completing the App Store Connect
+  listing remain outstanding.
