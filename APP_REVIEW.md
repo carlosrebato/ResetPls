@@ -1,6 +1,6 @@
 # ResetPls — iOS App Review notes
 
-Release candidate: 0.1.7 (53). TestFlight validation is not App Store approval.
+Release candidate: 0.1.7 (54). TestFlight validation is not App Store approval.
 
 ## Reviewer instructions (English)
 
@@ -53,8 +53,13 @@ Privacy: https://resetpls.app/privacy/ (English), https://resetpls.app/es/privac
 - App and iOS widget embed `Configurations/PrivacyInfo.xcprivacy`:
   UserDefaults reasons CA92.1 (app-only settings) and 1C8F.1 (App Group settings).
   No tracking or developer-side data collection. Re-audit when adding APIs/SDKs.
-- Check provider terms/authorization for this particular integration before
-  public submission. Apple guideline 5.2.2 may require supporting authorization.
-  Public-client availability and TestFlight acceptance do not prove permission.
 - No App Store submission is recorded by this document. Do not hide an
   integration or misstate capabilities to bypass review.
+
+## Accepted publication risk — owner decision, 2026-10-08
+
+Proceed with publication without making provider authorization a prerequisite.
+The owner has explicitly accepted this integration risk. Authorization remains
+unverified; other published trackers and TestFlight acceptance are not proof of
+permission, and Apple may request supporting evidence under guideline 5.2.2.
+Record that factual limitation without repeatedly reopening the same decision.
