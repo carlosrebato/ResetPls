@@ -3,6 +3,47 @@ import Foundation
 import Testing
 
 struct UsageHistoryTests {
+    @Test func weeklyBalancesRecordTheLatestObservationAndAllowResets() throws {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("weekly-history-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let cache = UsageHistoryCache(fileURL: fileURL)
+        let now = Calendar.current.startOfDay(for: .now).addingTimeInterval(3_600)
+        func reading(session: Double, weekly: Double, at time: Date, source: UsageSource = .live) -> ProviderUsageSnapshot {
+            ProviderUsageSnapshot(id: .claude,
+                session: UsageWindow(usedPercent: session, resetsAt: nil),
+                weekly: UsageWindow(usedPercent: weekly, resetsAt: nil),
+                observedAt: time, source: source, message: nil)
+        }
+        let first = try cache.recording([reading(session: 87, weekly: 55, at: now)], at: now)
+        #expect(first.days[0].claudeWeeklyPercent == 55)
+        let later = now.addingTimeInterval(600)
+        let reset = try cache.recording([reading(session: 2, weekly: 0, at: later)], at: later)
+        #expect(reset.days[0].claudeWeeklyPercent == 0)
+        #expect(reset.days[0].claudePercent == 87) // legacy data preserved
+        let delayed = try cache.recording([reading(session: 87, weekly: 55, at: now)], at: later)
+        #expect(delayed.days[0].claudeWeeklyPercent == 0)
+        let offline = try cache.recording([reading(session: 87, weekly: 55, at: later, source: .cached)], at: later)
+        #expect(offline.days[0].claudeWeeklyPercent == 0)
+        let tomorrow = now.addingTimeInterval(86_400)
+        let stale = try cache.recording([reading(session: 87, weekly: 55, at: now)], at: tomorrow)
+        #expect(stale.days.last?.claudeWeeklyPercent == nil)
+        let tokens = try cache.applyingDailyTokens([.claude: [Calendar.current.startOfDay(for: now): 1_000]],
+            periodStart: Calendar.current.startOfDay(for: now), periodEnd: tomorrow)
+        #expect(tokens.days[0].claudeWeeklyPercent == 0)
+    }
+    @Test func refreshCrossingMidnightRecordsQuotaOnItsObservationDay() throws {
+        let fileURL = FileManager.default.temporaryDirectory.appendingPathComponent("weekly-midnight-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let cache = UsageHistoryCache(fileURL: fileURL)
+        let nextDay = Calendar.current.startOfDay(for: .now)
+        let start = nextDay.addingTimeInterval(-1)
+        let observed = nextDay.addingTimeInterval(1)
+        let history = try cache.recording([snapshot(provider: .codex, percent: 27, at: observed)], at: start)
+        #expect(history.days.first?.codexWeeklyPercent == nil)
+        #expect(history.days.last?.date == nextDay)
+        #expect(history.days.last?.codexWeeklyPercent == 27)
+    }
+
     @Test func recordsDailyPeaksAndCalculatesTheCurrentStreak() throws {
         let fileURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("ai-usage-history-\(UUID().uuidString).json")
