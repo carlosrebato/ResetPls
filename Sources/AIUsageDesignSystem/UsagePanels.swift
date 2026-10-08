@@ -364,6 +364,7 @@ private struct TokenDetailMetric: View {
 public struct UsageTrendFooter: View {
 #if os(macOS)
     @AppStorage("usageTrendMetric.v1") private var selectedMetric: UsageTrend.Metric = .percent
+    @State private var showsMetricOptions = false
 #endif
     public let history: UsageHistory
     public let now: Date
@@ -439,26 +440,59 @@ public struct UsageTrendFooter: View {
 
     @ViewBuilder private var chartTitle: some View {
 #if os(macOS)
-        Menu {
-            Picker(language.text("Chart metric", "Medida de la gráfica"), selection: $selectedMetric) {
-                Text(language.text("Weekly quota (%)", "Cuota semanal (%)")).tag(UsageTrend.Metric.percent)
-                Text("Tokens").tag(UsageTrend.Metric.tokens)
-            }
-        } label: {
+        Button { showsMetricOptions.toggle() } label: {
             HStack(spacing: 4) {
                 Text(chartMetric == .tokens ? "TOKENS" : language.text("QUOTA", "CUOTA"))
-                Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 6.5, weight: .semibold))
+                    .opacity(0.7)
                 Text(language.text("· LAST 7 DAYS", "· ÚLTIMOS 7 DÍAS"))
             }
+            // Style the actual label, not a native menu-control environment.
+            .font(.system(size: 9, weight: .semibold))
+            .tracking(1.15)
+            .foregroundStyle(UsageTheme.mutedText)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
         .fixedSize()
+        .popover(isPresented: $showsMetricOptions, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 2) {
+                metricOption(.percent, title: language.text("Weekly quota (%)", "Cuota semanal (%)"))
+                metricOption(.tokens, title: "Tokens")
+            }
+            .padding(8)
+            .frame(width: 165)
+            .preferredColorScheme(.dark)
+        }
         .accessibilityLabel(language.text("Chart metric", "Medida de la gráfica"))
+        .accessibilityValue(chartMetric == .tokens ? "Tokens" : language.text("Weekly quota (%)", "Cuota semanal (%)"))
 #else
         Text(language.text("QUOTA · LAST 7 DAYS", "CUOTA · ÚLTIMOS 7 DÍAS"))
 #endif
     }
+
+#if os(macOS)
+    private func metricOption(_ metric: UsageTrend.Metric, title: String) -> some View {
+        Button {
+            selectedMetric = metric
+            showsMetricOptions = false
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "checkmark")
+                    .opacity(selectedMetric == metric ? 1 : 0)
+                Text(title)
+                Spacer(minLength: 0)
+            }
+            .font(.system(size: 12))
+            .tracking(0)
+            .foregroundStyle(UsageTheme.tertiaryText)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+#endif
 
     private func legend(_ provider: UsageProviderID, trend: UsageTrend) -> some View {
         let title = provider == .claude ? "Claude" : "Codex"
