@@ -4,6 +4,21 @@ import Testing
 @testable import AIUsageMacServices
 
 struct LocalUsageMetricsReaderTests {
+    @Test func failedIndexInitializationCanRecoverOnTheNextRefresh() async throws {
+        let home = temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        try writeLines([claudeLine(messageID: "first")], to: home.appendingPathComponent(".claude/projects/demo/session.jsonl"))
+        let blockedParent = home.appendingPathComponent("blocked")
+        try Data("not a directory".utf8).write(to: blockedParent)
+        let fixtureReader = LocalUsageMetricsReader(homeDirectory: home, indexURL: blockedParent.appendingPathComponent("index.sqlite3"))
+        let start = date("2026-07-20T00:00:00Z")
+        let end = date("2026-07-24T00:00:00Z")
+        let unavailable = await fixtureReader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
+        #expect(unavailable == nil)
+        try FileManager.default.removeItem(at: blockedParent)
+        let recovered = await fixtureReader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
+        #expect(recovered?.totalTokens == 1_350)
+    }
     @Test func reviewingHistoryAccessBypassesTheFifteenMinuteScanCache() async throws {
         let home = temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }

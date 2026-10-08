@@ -68,6 +68,7 @@ struct AIUsageMacApp: App {
     }
 
     private var shouldPresentOnboarding: Bool {
+        if CommandLine.arguments.contains("--verify-local-history") { return false }
 #if DEBUG
         if CommandLine.arguments.contains("--verify-status-popover")
             || CommandLine.arguments.contains("--verify-claude-metrics-picker") {
@@ -88,6 +89,10 @@ final class AIUsageAppDelegate: NSObject, NSApplicationDelegate {
     private var statusBarController: NativeStatusBarController?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if CommandLine.arguments.contains("--verify-local-history") {
+            verifyLocalHistory()
+            return
+        }
         try? ProviderOAuthSecurity.purgeLegacyAIUsageTokens()
         statusBarController = NativeStatusBarController(
             store: store,
@@ -96,6 +101,44 @@ final class AIUsageAppDelegate: NSObject, NSApplicationDelegate {
         )
         runKeychainSmokeTestIfRequested()
         runSmokeTestIfRequested()
+    }
+
+    /// Headless, read-only provider diagnosis: no credentials, paths or raw
+    /// messages in the output, and no network refresh or provider interaction.
+    private func verifyLocalHistory() {
+        Task {
+            var report: [String: Any] = [:]
+            if let group = FileManager.default.containerURL(
+                forSecurityApplicationGroupIdentifier: AIUsageAppGroup.identifier
+            ) {
+                let probe = group.appendingPathComponent("storage-probe-\(UUID().uuidString)")
+                do {
+                    try Data("probe".utf8).write(to: probe, options: .atomic)
+                    try FileManager.default.removeItem(at: probe)
+                    report["sharedStorageWritable"] = true
+                } catch { report["sharedStorageWritable"] = false }
+            } else { report["sharedStorageWritable"] = false }
+            let reader = LocalUsageMetricsReader()
+            let end = Date.now
+            for provider in UsageProviderID.allCases {
+                let directory: ProviderDataDirectory = provider == .claude ? .claudeCode : .codex
+                let totals = await reader.weeklyTotals(
+                    for: provider, periodStart: end.addingTimeInterval(-7 * 86_400), periodEnd: end
+                )
+                let diagnostics = await reader.diagnostics(for: provider)
+                report[provider.rawValue] = [
+                    "folderReadable": ProviderDataAccess.shared.hasUsableAccess(for: directory),
+                    "totalTokensLastSevenDays": totals?.totalTokens ?? 0,
+                    "scannedFiles": diagnostics?.scannedFiles ?? 0,
+                    "reusedFiles": diagnostics?.reusedFiles ?? 0
+                ]
+            }
+            if let data = try? JSONSerialization.data(withJSONObject: report, options: [.sortedKeys]) {
+                FileHandle.standardOutput.write(data)
+                FileHandle.standardOutput.write(Data("\n".utf8))
+            }
+            NSApplication.shared.terminate(nil)
+        }
     }
 
     private func runKeychainSmokeTestIfRequested() {

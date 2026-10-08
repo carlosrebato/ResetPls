@@ -97,13 +97,16 @@ Group in Apple Developer, then run:
 ```sh
 AI_USAGE_DEVELOPMENT_TEAM=YOUR_TEAM_ID \
 AI_USAGE_APP_BUNDLE_ID=com.example.aiusage \
-AI_USAGE_APP_GROUP=group.com.example.aiusage \
+AI_USAGE_APP_GROUP=YOUR_TEAM_ID.com.carlosrebato.aiusage \
 Scripts/build-signed-debug.sh
 ```
 
 The script builds outside synced folders, validates the signature, bundle ID
 and App Group, and avoids Finder metadata that can invalidate `codesign`. Install
-the app you use regularly at `/Applications/ResetPls.app`.
+the app you use regularly at `/Applications/ResetPls.app`. On macOS, a team-prefixed
+App Group works without a provisioning-profile grant. A `group.` identifier
+requires explicit authorization in the embedded profile; the entitlement alone
+is not sufficient. iOS retains its registered `group.` identifier.
 
 The public project defaults to `com.example.aiusage` and
 `group.com.example.aiusage`. Official releases override the build settings
