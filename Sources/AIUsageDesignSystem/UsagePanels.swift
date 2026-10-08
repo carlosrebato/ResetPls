@@ -362,6 +362,9 @@ private struct TokenDetailMetric: View {
 }
 
 public struct UsageTrendFooter: View {
+#if os(macOS)
+    @AppStorage("usageTrendMetric.v1") private var selectedMetric: UsageTrend.Metric = .percent
+#endif
     public let history: UsageHistory
     public let now: Date
     public let language: AppLanguage
@@ -394,13 +397,12 @@ public struct UsageTrendFooter: View {
     public var body: some View {
         let trend = UsageTrend(
             days: history.lastSevenDays(relativeTo: now, currentDayProviders: currentDayProviders),
-            providers: providers
+            providers: providers,
+            metric: chartMetric
         )
         VStack(spacing: compact ? 8 : 14) {
             HStack {
-                Text(trend.metric == .tokens
-                    ? language.text("TOKENS · LAST 7 DAYS", "TOKENS · ÚLTIMOS 7 DÍAS")
-                    : language.text("QUOTA · LAST 7 DAYS", "CUOTA · ÚLTIMOS 7 DÍAS"))
+                chartTitle
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(1.15)
                     .foregroundStyle(UsageTheme.mutedText)
@@ -425,6 +427,37 @@ public struct UsageTrendFooter: View {
         .overlay(alignment: .top) {
             Rectangle().fill(UsageTheme.hairline).frame(height: 1)
         }
+    }
+
+    private var chartMetric: UsageTrend.Metric {
+#if os(macOS)
+        selectedMetric
+#else
+        .percent
+#endif
+    }
+
+    @ViewBuilder private var chartTitle: some View {
+#if os(macOS)
+        Menu {
+            Picker(language.text("Chart metric", "Medida de la gráfica"), selection: $selectedMetric) {
+                Text(language.text("Weekly quota (%)", "Cuota semanal (%)")).tag(UsageTrend.Metric.percent)
+                Text("Tokens").tag(UsageTrend.Metric.tokens)
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(chartMetric == .tokens ? "TOKENS" : language.text("QUOTA", "CUOTA"))
+                Image(systemName: "chevron.down").font(.system(size: 8, weight: .semibold))
+                Text(language.text("· LAST 7 DAYS", "· ÚLTIMOS 7 DÍAS"))
+            }
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel(language.text("Chart metric", "Medida de la gráfica"))
+#else
+        Text(language.text("QUOTA · LAST 7 DAYS", "CUOTA · ÚLTIMOS 7 DÍAS"))
+#endif
     }
 
     private func legend(_ provider: UsageProviderID, trend: UsageTrend) -> some View {

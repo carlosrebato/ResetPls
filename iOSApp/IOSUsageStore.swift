@@ -265,8 +265,8 @@ final class IOSUsageStore: ObservableObject {
 
     private static func demoHistory(relativeTo now: Date) -> UsageHistory {
         let calendar = Calendar.current
-        let claude = [22.0, 31, 19, 46, 38, 51, 43]
-        let codex = [35.0, 28, 44, 32, 57, 49, 64]
+        let claude = [8.0, 17, 25, 32, 36, 40, 43]
+        let codex = [25.0, 62, 0, 8, 17, 29, 37]
         let days = (-6...0).compactMap { offset -> UsageHistoryDay? in
             guard let date = calendar.date(byAdding: .day, value: offset, to: now) else { return nil }
             let index = offset + 6
@@ -274,7 +274,9 @@ final class IOSUsageStore: ObservableObject {
                 date: calendar.startOfDay(for: date),
                 claudePercent: claude[index],
                 codexPercent: codex[index],
-                activity: true
+                activity: true,
+                claudeWeeklyPercent: claude[index],
+                codexWeeklyPercent: codex[index]
             )
         }
         return UsageHistory(days: days)
