@@ -2,11 +2,39 @@ import AIUsageCore
 import AIUsageProviderServices
 import AIUsageDesignSystem
 import SwiftUI
+import Vision
 import XCTest
 @testable import AIUsageIOS
 
 @MainActor
 final class IOSUsageStoreTests: XCTestCase {
+    func testDashboardDoesNotRenderTokenPlaceholderInEitherLanguage() throws {
+        let now = Date.now
+        let snapshots = UsageProviderID.allCases.map { provider in
+            ProviderUsageSnapshot(id: provider,
+                session: UsageWindow(usedPercent: provider == .claude ? 28 : nil,
+                                     resetsAt: now.addingTimeInterval(7200)),
+                weekly: UsageWindow(usedPercent: 43, resetsAt: now.addingTimeInterval(345600)),
+                observedAt: now, source: .live, message: nil)
+        }
+        for language in [AppLanguage.english, .spanish] {
+            let renderer = ImageRenderer(content: UsageDetailedMetrics(
+                snapshots: snapshots, now: now, language: language)
+                .frame(width: 350).padding(20).background(Color.black))
+            renderer.scale = 3
+            let image = try XCTUnwrap(renderer.uiImage?.cgImage)
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = [language == .english ? "en-US" : "es-ES"]
+            try VNImageRequestHandler(cgImage: image).perform([request])
+            let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+                .joined(separator: " ").uppercased()
+            XCTAssertTrue(text.contains("CLAUDE"), text)
+            XCTAssertTrue(text.contains("CODEX"), text)
+            XCTAssertFalse(text.contains("TOKENS"), text)
+        }
+    }
+
     func testDemoDoesNotFetchOrOverwriteRealCacheAndRestoresAccounts() async throws {
         let fixture = try Fixture()
         let real = Self.snapshot(provider: .claude, percent: 19, source: .live)
