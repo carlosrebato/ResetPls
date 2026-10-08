@@ -73,6 +73,15 @@ struct IOSDashboardView: View {
 
     private var header: some View {
         HStack(alignment: .center, spacing: 10) {
+            Text("RESETPLS")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(2.4)
+                .foregroundStyle(UsageTheme.tertiaryText)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .onLongPressGesture(minimumDuration: 2) {
+                    store.setDemoMode(true)
+                }
             Spacer()
 
             Button {
@@ -121,9 +130,17 @@ struct IOSDashboardView: View {
     @ViewBuilder
     private var freshnessLine: some View {
         if store.isDemoMode {
-            Text(language.text("Demo data", "Datos de demo"))
-                .font(.system(size: 10.5, weight: .medium))
-                .foregroundStyle(UsageTheme.mock)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(language.text("Demo data", "Datos de demo"))
+                    .foregroundStyle(UsageTheme.mock)
+                Button(language.text("Exit demo", "Salir de demo")) {
+                    store.setDemoMode(false)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(UsageTheme.secondaryText)
+                .disabled(store.isRefreshing || !store.authenticatingProviders.isEmpty)
+            }
+            .font(.system(size: 10.5, weight: .medium))
         } else if store.isRefreshing {
             Text(language.text("Updating…", "Actualizando…"))
                 .font(.system(size: 10.5, weight: .medium))
@@ -323,6 +340,12 @@ struct IOSOnboardingView: View {
                         .font(.system(size: 11, weight: .bold))
                         .tracking(2.4)
                         .foregroundStyle(UsageTheme.tertiaryText)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                        .onLongPressGesture(minimumDuration: 2) {
+                            store.setDemoMode(true)
+                            if store.isDemoMode { finish() }
+                        }
 
                     VStack(spacing: 10) {
                         Text(language.text(
@@ -371,15 +394,6 @@ struct IOSOnboardingView: View {
                             .opacity(canContinue ? 1 : 0.42)
                     }
                     .padding(.top, 24)
-
-                    Button(language.text("Explore demo", "Explorar demo")) {
-                        store.setDemoMode(true)
-                        finish()
-                    }
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(UsageTheme.secondaryText)
-                    .disabled(store.isRefreshing || !store.authenticatingProviders.isEmpty)
-                    .padding(.top, 20)
 
                     Spacer(minLength: 34)
                 }

@@ -7,12 +7,15 @@ Release candidate: 0.1.7 (54). TestFlight validation is not App Store approval.
 ResetPls is an independent usage viewer for Claude Code and Codex. It is not
 affiliated with Anthropic or OpenAI, and does not provide chat or inference.
 
-To explore without an account, tap **Explore demo** on the welcome screen.
-If the welcome screen was dismissed, open **Settings → Preferences → Demo mode**.
+To explore without an account, press and hold the **RESETPLS** wordmark for
+two seconds on the welcome screen or at the top left of the dashboard.
+This explicitly disclosed demo entry is available to all users in the same binary;
+there is no reviewer detection or post-review feature switch.
 The dashboard displays explicitly marked, synthetic sample data, including
 session/weekly percentages, reset countdowns, pace estimates and the seven-day
 weekly quota chart. Refresh in demo mode updates the samples without querying a
-provider. Turn demo mode off in Settings to restore real account readings.
+provider. Tap **Exit demo** below **Demo data** in the dashboard header to
+restore real account readings.
 Demo samples are not written into real account caches or history.
 
 For live use, connect a provider from the welcome screen or Settings → Accounts

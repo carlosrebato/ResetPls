@@ -114,25 +114,6 @@ struct IOSSettingsView: View {
     private var preferencesSection: some View {
         settingsSection(language.text("Preferences", "Preferencias")) {
             languageRow
-            settingsDivider
-            Toggle(isOn: Binding(
-                get: { store.isDemoMode },
-                set: { store.setDemoMode($0) }
-            )) {
-                HStack(spacing: 13) {
-                    settingsIcon("play.rectangle")
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(language.text("Demo mode", "Modo demo")).settingsRowTitle()
-                        Text(language.text("Explore with sample data. No account needed.",
-                                           "Explora con datos de ejemplo. Sin cuenta."))
-                            .settingsRowSubtitle()
-                    }
-                }
-            }
-            .tint(IOSSettingsPalette.accent)
-            .disabled(store.isRefreshing || !store.authenticatingProviders.isEmpty)
-            .padding(.horizontal, 15)
-            .frame(minHeight: 68)
         }
     }
 
