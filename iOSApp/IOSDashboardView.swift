@@ -84,11 +84,18 @@ struct IOSDashboardView: View {
                 }
             Spacer()
 
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(now, style: .time)
+                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(UsageTheme.primaryText)
+                freshnessLine
+            }
+
             Button {
                 Task { await store.refresh(force: true) }
             } label: {
                 Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 20, weight: .medium))
                     .foregroundStyle(UsageTheme.secondaryText)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
@@ -98,13 +105,6 @@ struct IOSDashboardView: View {
             .opacity(store.isRefreshing ? 0.45 : 1)
             .accessibilityLabel(language.text("Refresh usage", "Actualizar uso"))
             .accessibilityHint(language.text("Updates the service limits", "Actualiza los límites de los servicios"))
-
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(now, style: .time)
-                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(UsageTheme.primaryText)
-                freshnessLine
-            }
         }
     }
 
