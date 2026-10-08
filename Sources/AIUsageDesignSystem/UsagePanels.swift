@@ -444,8 +444,8 @@ public struct UsageTrendFooter: View {
             HStack(spacing: 4) {
                 Text(chartMetric == .tokens ? "TOKENS" : language.text("QUOTA", "CUOTA"))
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 6.5, weight: .semibold))
-                    .opacity(0.7)
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(UsageTheme.tertiaryText)
                 Text(language.text("· LAST 7 DAYS", "· ÚLTIMOS 7 DÍAS"))
             }
             // Style the actual label, not a native menu-control environment.
