@@ -618,7 +618,7 @@ private struct UsageTrendChart: View {
                 context.draw(
                     Text(trend.metric == .tokens ? compactTokens(Int(trend.scaleMaximum)) : "100%")
                         .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(inspectedIndex == nil ? UsageTheme.mutedText : .clear),
+                        .foregroundStyle(inspectedIndex == nil || inspectedIndex == days.count - 1 ? UsageTheme.mutedText : .clear),
                     at: CGPoint(x: left, y: 4),
                     anchor: .topLeading
                 )
@@ -740,6 +740,9 @@ private struct UsageTrendChart: View {
                                with: .color(UsageTheme.provider(provider)), lineWidth: 2)
             }
         }
+        // Today's values already appear at the endpoints; retain only the highlights.
+        guard index < days.count - 1 else { return }
+
         let resolved = context.resolve(label.font(.system(size: 9, weight: .semibold)))
         let measured = resolved.measure(in: CGSize(width: max(size.width - 20, 1), height: .infinity))
         let width = min(measured.width + 14, size.width - 4)
