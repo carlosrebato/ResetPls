@@ -586,6 +586,8 @@ public struct UsageTrendFooter: View {
 private struct UsageTrendChart: View {
     let trend: UsageTrend
     let language: AppLanguage
+    @State private var hoverLocation: CGPoint?
+    @GestureState private var touchLocation: CGPoint?
 
     private var days: [UsageHistoryDay] { trend.days }
     private var providers: Set<UsageProviderID> { trend.providers }
@@ -604,6 +606,11 @@ private struct UsageTrendChart: View {
             let plotHeight = baseline - top
             let step = (right - left) / CGFloat(max(days.count - 1, 1))
             let xPositions = days.indices.map { left + CGFloat($0) * step }
+            let inspectionLocation = touchLocation ?? hoverLocation
+            let inspectedIndex = inspectionLocation.flatMap {
+                UsageTrendInspection.index(at: $0, size: size, plotLeft: left,
+                                           plotRight: right, dayCount: days.count)
+            }
             let hasMeasurements = providers.contains { trend.hasSeries(for: $0) }
             if hasMeasurements {
                 context.draw(
@@ -684,7 +691,65 @@ private struct UsageTrendChart: View {
                     anchor: .center
                 )
             }
+            if let inspectedIndex {
+                drawInspection(index: inspectedIndex, x: xPositions[inspectedIndex],
+                               top: top, baseline: baseline, plotHeight: plotHeight,
+                               size: size, context: &context)
+            }
         }
+        .contentShape(Rectangle())
+        #if os(macOS)
+        .onContinuousHover { phase in
+            switch phase {
+            case .active(let location): hoverLocation = location
+            case .ended: hoverLocation = nil
+            }
+        }
+        #else
+        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
+            .updating($touchLocation) { value, location, _ in
+                location = value.location
+            })
+        #endif
+    }
+
+    private func drawInspection(index: Int, x: CGFloat, top: CGFloat, baseline: CGFloat,
+                                plotHeight: CGFloat, size: CGSize,
+                                context: inout GraphicsContext) {
+        var guide = Path()
+        guide.move(to: CGPoint(x: x, y: top))
+        guide.addLine(to: CGPoint(x: x, y: baseline))
+        context.stroke(guide, with: .color(.white.opacity(0.25)),
+                       style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+
+        let day = days[index]
+        var label = Text("")
+        for provider in UsageProviderID.allCases where providers.contains(provider) {
+            if !labelIsFirst(provider) { label = label + Text("  ·  ").foregroundColor(UsageTheme.mutedText) }
+            let value = trend.value(for: day, provider: provider)
+            let formatted = value.map {
+                trend.metric == .tokens ? compactTokens(Int($0)) : "\(Int($0.rounded()))%"
+            } ?? language.text("No data", "Sin datos")
+            label = label + Text("\(provider == .claude ? "Claude" : "Codex") \(formatted)")
+                .foregroundColor(UsageTheme.provider(provider))
+            if let normalized = trend.normalizedValue(for: day, provider: provider) {
+                let y = baseline - plotHeight * normalized
+                context.stroke(Path(ellipseIn: CGRect(x: x - 5, y: y - 5, width: 10, height: 10)),
+                               with: .color(UsageTheme.provider(provider)), lineWidth: 2)
+            }
+        }
+        let resolved = context.resolve(label.font(.system(size: 9, weight: .semibold)))
+        let measured = resolved.measure(in: CGSize(width: max(size.width - 20, 1), height: .infinity))
+        let width = min(measured.width + 14, size.width - 4)
+        let rect = CGRect(x: min(max(x - width / 2, 2), size.width - width - 2),
+                          y: 0, width: width, height: measured.height + 10)
+        context.fill(Path(roundedRect: rect, cornerRadius: 5), with: .color(UsageTheme.stage))
+        context.stroke(Path(roundedRect: rect, cornerRadius: 5), with: .color(.white.opacity(0.12)), lineWidth: 1)
+        context.draw(resolved, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
+    }
+
+    private func labelIsFirst(_ provider: UsageProviderID) -> Bool {
+        UsageProviderID.allCases.first(where: { providers.contains($0) }) == provider
     }
 
     private func drawDottedGuide(
