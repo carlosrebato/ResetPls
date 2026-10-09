@@ -601,7 +601,9 @@ private struct UsageTrendChart: View {
             // generous gutter made the seven-day series look horizontally cropped.
             let labelGutter = endpointLabels.isEmpty ? 8 : labelWidth + 6
             let right = max(left, size.width - labelGutter)
-            let top: CGFloat = 16
+            // Reserve a header lane for inspection values, clear of even the
+            // highest point's ring. Keep geometry stable when hovering/touching.
+            let top: CGFloat = 34
             let baseline = max(top + 36, size.height - 22)
             let plotHeight = baseline - top
             let step = (right - left) / CGFloat(max(days.count - 1, 1))
@@ -616,7 +618,7 @@ private struct UsageTrendChart: View {
                 context.draw(
                     Text(trend.metric == .tokens ? compactTokens(Int(trend.scaleMaximum)) : "100%")
                         .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(UsageTheme.mutedText),
+                        .foregroundStyle(inspectedIndex == nil ? UsageTheme.mutedText : .clear),
                     at: CGPoint(x: left, y: 4),
                     anchor: .topLeading
                 )
@@ -729,8 +731,8 @@ private struct UsageTrendChart: View {
             let value = trend.value(for: day, provider: provider)
             let formatted = value.map {
                 trend.metric == .tokens ? compactTokens(Int($0)) : "\(Int($0.rounded()))%"
-            } ?? language.text("No data", "Sin datos")
-            label = label + Text("\(provider == .claude ? "Claude" : "Codex") \(formatted)")
+            } ?? "—"
+            label = label + Text(formatted)
                 .foregroundColor(UsageTheme.provider(provider))
             if let normalized = trend.normalizedValue(for: day, provider: provider) {
                 let y = baseline - plotHeight * normalized
