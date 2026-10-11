@@ -72,23 +72,41 @@ struct IOSDashboardView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top) {
+        HStack(alignment: .center, spacing: 10) {
+            Text("RESETPLS")
+                .font(.system(size: 11, weight: .bold))
+                .tracking(2.4)
+                .foregroundStyle(UsageTheme.tertiaryText)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+                .onLongPressGesture(minimumDuration: 2) {
+                    store.setDemoMode(true)
+                }
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(now, style: .time)
-                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(UsageTheme.primaryText)
+            HStack(alignment: .center, spacing: 6) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(now, style: .time)
+                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(UsageTheme.primaryText)
+                    freshnessLine
+                }
+
                 Button {
                     Task { await store.refresh(force: true) }
                 } label: {
-                    freshnessLine
-                        .contentShape(Rectangle())
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(UsageTheme.mutedText.opacity(0.72))
+                        .frame(width: 14, height: 44)
+                        // Keep a generous touch target without spacing the visible icon away.
+                        .contentShape(Rectangle().inset(by: -15))
                 }
                 .buttonStyle(.plain)
                 .disabled(store.isRefreshing)
+                .opacity(store.isRefreshing ? 0.45 : 1)
                 .accessibilityLabel(language.text("Refresh usage", "Actualizar uso"))
-                .accessibilityHint(language.text("Double tap to update", "Toca dos veces para actualizar"))
+                .accessibilityHint(language.text("Updates the service limits", "Actualiza los límites de los servicios"))
             }
         }
     }
@@ -114,7 +132,19 @@ struct IOSDashboardView: View {
 
     @ViewBuilder
     private var freshnessLine: some View {
-        if store.isRefreshing {
+        if store.isDemoMode {
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(language.text("Demo data", "Datos de demo"))
+                    .foregroundStyle(UsageTheme.mock)
+                Button(language.text("Exit demo", "Salir de demo")) {
+                    store.setDemoMode(false)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(UsageTheme.secondaryText)
+                .disabled(store.isRefreshing || !store.authenticatingProviders.isEmpty)
+            }
+            .font(.system(size: 10.5, weight: .medium))
+        } else if store.isRefreshing {
             Text(language.text("Updating…", "Actualizando…"))
                 .font(.system(size: 10.5, weight: .medium))
                 .foregroundStyle(UsageTheme.mutedText)
@@ -131,9 +161,6 @@ struct IOSDashboardView: View {
                     Image(systemName: freshness.kind == .cached ? "clock.fill" : "checkmark")
                         .font(.system(size: 7.5, weight: .bold))
                         .foregroundStyle(freshness.kind == .cached ? UsageTheme.cached.opacity(0.82) : UsageTheme.green.opacity(0.72))
-                    Image(systemName: "hand.tap")
-                        .font(.system(size: 7.5, weight: .medium))
-                        .foregroundStyle(UsageTheme.mutedText.opacity(0.4))
                 }
                 .font(.system(size: 10.5, weight: .medium))
                 .accessibilityElement(children: .combine)
@@ -316,6 +343,12 @@ struct IOSOnboardingView: View {
                         .font(.system(size: 11, weight: .bold))
                         .tracking(2.4)
                         .foregroundStyle(UsageTheme.tertiaryText)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
+                        .onLongPressGesture(minimumDuration: 2) {
+                            store.setDemoMode(true)
+                            if store.isDemoMode { finish() }
+                        }
 
                     VStack(spacing: 10) {
                         Text(language.text(

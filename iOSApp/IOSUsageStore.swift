@@ -14,7 +14,7 @@ final class IOSUsageStore: ObservableObject {
     @Published private(set) var history: UsageHistory
     @Published private(set) var isRefreshing = false
     @Published private(set) var authenticatingProviders: Set<UsageProviderID> = []
-    @Published var isDemoMode = ProcessInfo.processInfo.arguments.contains("--app-review-demo")
+    @Published private(set) var isDemoMode = ProcessInfo.processInfo.arguments.contains("--app-review-demo")
 
     private let cache: LastKnownCache
     private let historyCache: UsageHistoryCache
@@ -148,6 +148,7 @@ final class IOSUsageStore: ObservableObject {
         _ provider: UsageProviderID,
         authenticate: @escaping @MainActor () async throws -> Void
     ) async {
+        guard !isDemoMode else { return }
         let previousSnapshot = snapshots.first { $0.id == provider }
         let previousState = states[provider] ?? .setupRequired
         let previousMessage = messages[provider]
@@ -177,6 +178,7 @@ final class IOSUsageStore: ObservableObject {
     }
 
     func signOut(_ provider: UsageProviderID) async {
+        guard !isDemoMode else { return }
         do {
             try await ProviderAccounts.shared.signOut(provider)
             snapshots.removeAll { $0.id == provider }
@@ -191,6 +193,9 @@ final class IOSUsageStore: ObservableObject {
     }
 
     func setDemoMode(_ enabled: Bool) {
+        // Do not switch while authentication/refresh is suspended: its result
+        // could otherwise replace the preview or persist synthetic values.
+        guard !isRefreshing, authenticatingProviders.isEmpty else { return }
         isDemoMode = enabled
         if enabled {
             applyDemo()
@@ -198,6 +203,10 @@ final class IOSUsageStore: ObservableObject {
             snapshots = []
             states = [.claude: .setupRequired, .codex: .setupRequired]
             messages = [:]
+            history = historyCache.load()
+            restoreCachedSnapshots()
+            states.merge(statusCache.load().mapValues(\.state)) { _, saved in saved }
+            lastRefresh = nil
         }
     }
 
@@ -265,8 +274,8 @@ final class IOSUsageStore: ObservableObject {
 
     private static func demoHistory(relativeTo now: Date) -> UsageHistory {
         let calendar = Calendar.current
-        let claude = [22.0, 31, 19, 46, 38, 51, 43]
-        let codex = [35.0, 28, 44, 32, 57, 49, 64]
+        let claude = [8.0, 17, 25, 32, 36, 40, 43]
+        let codex = [25.0, 62, 0, 8, 17, 29, 37]
         let days = (-6...0).compactMap { offset -> UsageHistoryDay? in
             guard let date = calendar.date(byAdding: .day, value: offset, to: now) else { return nil }
             let index = offset + 6
@@ -274,7 +283,9 @@ final class IOSUsageStore: ObservableObject {
                 date: calendar.startOfDay(for: date),
                 claudePercent: claude[index],
                 codexPercent: codex[index],
-                activity: true
+                activity: true,
+                claudeWeeklyPercent: claude[index],
+                codexWeeklyPercent: codex[index]
             )
         }
         return UsageHistory(days: days)

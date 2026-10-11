@@ -142,6 +142,11 @@ public final class UsageStore: ObservableObject {
         return try encoder.encode(report)
     }
 
+    public func refreshLocalHistory(for provider: UsageProviderID) async {
+        await metricsReader.invalidateLocalHistory(for: provider)
+        await refreshWhenIdle(force: true, allowInteraction: false, provider: provider)
+    }
+
     public func refresh(
         force: Bool = true,
         allowInteraction: Bool = true,

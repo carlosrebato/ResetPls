@@ -4,6 +4,39 @@ import Testing
 @testable import AIUsageMacServices
 
 struct LocalUsageMetricsReaderTests {
+    @Test func failedIndexInitializationCanRecoverOnTheNextRefresh() async throws {
+        let home = temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        try writeLines([claudeLine(messageID: "first")], to: home.appendingPathComponent(".claude/projects/demo/session.jsonl"))
+        let blockedParent = home.appendingPathComponent("blocked")
+        try Data("not a directory".utf8).write(to: blockedParent)
+        let fixtureReader = LocalUsageMetricsReader(homeDirectory: home, indexURL: blockedParent.appendingPathComponent("index.sqlite3"))
+        let start = date("2026-07-20T00:00:00Z")
+        let end = date("2026-07-24T00:00:00Z")
+        let unavailable = await fixtureReader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
+        #expect(unavailable == nil)
+        try FileManager.default.removeItem(at: blockedParent)
+        let recovered = await fixtureReader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
+        #expect(recovered?.totalTokens == 1_350)
+    }
+    @Test func reviewingHistoryAccessBypassesTheFifteenMinuteScanCache() async throws {
+        let home = temporaryHome()
+        defer { try? FileManager.default.removeItem(at: home) }
+        let file = home.appendingPathComponent(".claude/projects/demo/session.jsonl")
+        try writeLines([claudeLine(messageID: "first")], to: file)
+        let reader = LocalUsageMetricsReader(homeDirectory: home, refreshInterval: 900)
+        let start = date("2026-07-20T00:00:00Z")
+        let end = date("2026-07-24T00:00:00Z")
+        let initial = await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
+        #expect(initial?.totalTokens == 1_350)
+        try writeLines([claudeLine(messageID: "first"), claudeLine(messageID: "second")], to: file)
+        let stale = await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
+        #expect(stale?.totalTokens == 1_350)
+        await reader.invalidateLocalHistory(for: .claude)
+        let refreshed = await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
+        #expect(refreshed?.totalTokens == 2_700)
+    }
+
     @Test(
         "Índice incremental real",
         .enabled(if: ProcessInfo.processInfo.environment["RUN_LOCAL_METRICS_BENCHMARK"] == "1")

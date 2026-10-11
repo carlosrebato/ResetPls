@@ -81,6 +81,7 @@ final class LocalUsageMetricsIndex {
     private let iso8601 = ISO8601DateFormatter()
     private let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
     private let usageNeedle = Data("\"usage\"".utf8)
+    private let newlineNeedle = Data([0x0A])
     private let tokenCountNeedle = Data("\"token_count\"".utf8)
     private let turnContextNeedle = Data("\"turn_context\"".utf8)
 
@@ -337,7 +338,10 @@ final class LocalUsageMetricsIndex {
                 guard !Task.isCancelled else { throw CancellationError() }
                 scannedBytes += Int64(chunk.count)
                 buffer.append(chunk)
-                while let newline = buffer.firstIndex(of: 0x0A) {
+                // Foundation searches the contiguous bytes directly. Swift's
+                // element-by-element Data iteration is extremely slow for
+                // multi-gigabyte histories in signed development builds.
+                while let newline = buffer.range(of: newlineNeedle)?.lowerBound {
                     let line = Data(buffer[buffer.startIndex..<newline])
                     let consumed = Int64(line.count + 1)
                     let lineOffset = startingOffset + processedBytes

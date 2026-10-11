@@ -2,11 +2,150 @@ import AIUsageCore
 import AIUsageProviderServices
 import AIUsageDesignSystem
 import SwiftUI
+import Vision
 import XCTest
 @testable import AIUsageIOS
 
 @MainActor
 final class IOSUsageStoreTests: XCTestCase {
+    func testDashboardDoesNotRenderTokenPlaceholderInEitherLanguage() throws {
+        let now = Date.now
+        let snapshots = UsageProviderID.allCases.map { provider in
+            ProviderUsageSnapshot(id: provider,
+                session: UsageWindow(usedPercent: provider == .claude ? 28 : nil,
+                                     resetsAt: now.addingTimeInterval(7200)),
+                weekly: UsageWindow(usedPercent: 43, resetsAt: now.addingTimeInterval(345600)),
+                observedAt: now, source: .live, message: nil)
+        }
+        for language in [AppLanguage.english, .spanish] {
+            let renderer = ImageRenderer(content: UsageDetailedMetrics(
+                snapshots: snapshots, now: now, language: language)
+                .frame(width: 350).padding(20).background(Color.black))
+            renderer.scale = 3
+            let image = try XCTUnwrap(renderer.uiImage?.cgImage)
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = [language == .english ? "en-US" : "es-ES"]
+            try VNImageRequestHandler(cgImage: image).perform([request])
+            let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+                .joined(separator: " ").uppercased()
+            XCTAssertTrue(text.contains("CLAUDE"), text)
+            XCTAssertTrue(text.contains("CODEX"), text)
+            XCTAssertFalse(text.contains("TOKENS"), text)
+        }
+    }
+
+    func testDemoDoesNotFetchOrOverwriteRealCacheAndRestoresAccounts() async throws {
+        let fixture = try Fixture()
+        let real = Self.snapshot(provider: .claude, percent: 19, source: .live)
+        try fixture.cache.save([real])
+        try fixture.statusCache.save([.claude: .live, .codex: .setupRequired])
+        _ = try fixture.historyCache.recording([real], at: real.observedAt)
+        let savedHistory = fixture.historyCache.load()
+        let claude = StubAdapter(provider: .claude, result: .success(real))
+        let codex = StubAdapter(provider: .codex, result: .failure(DirectUsageError.notAuthenticated))
+        let store = IOSUsageStore(claude: claude, codex: codex,
+            cache: fixture.cache, historyCache: fixture.historyCache, statusCache: fixture.statusCache)
+        store.setDemoMode(true)
+        XCTAssertTrue(store.isDemoMode)
+        XCTAssertEqual(store.snapshots.count, 2)
+        XCTAssertTrue(store.snapshots.allSatisfy { $0.source == .mock })
+        await store.refresh(force: true)
+        await store.refreshIfDue(at: .now)
+        await store.signIn(.claude) { XCTFail("Demo must not authenticate") }
+        await store.signOut(.claude)
+        let claudeCalls = await claude.fetchCount()
+        let codexCalls = await codex.fetchCount()
+        XCTAssertEqual(claudeCalls, 0)
+        XCTAssertEqual(codexCalls, 0)
+        XCTAssertEqual(fixture.cache.load()[.claude], real)
+        XCTAssertEqual(fixture.historyCache.load(), savedHistory)
+        XCTAssertEqual(fixture.statusCache.load()[.claude]?.state, .live)
+        store.setDemoMode(false)
+        XCTAssertFalse(store.isDemoMode)
+        XCTAssertEqual(store.snapshots.first?.session.usedPercent, 19)
+        XCTAssertEqual(store.snapshots.first?.source, .cached)
+        XCTAssertEqual(store.states[.claude], .live)
+        XCTAssertEqual(store.history, savedHistory)
+        await store.refresh()
+        let callsAfterExit = await claude.fetchCount()
+        XCTAssertEqual(callsAfterExit, 1)
+    }
+
+    func testDemoExitWithoutAccountsRestoresEmptyState() throws {
+        let fixture = try Fixture()
+        let store = IOSUsageStore(cache: fixture.cache, historyCache: fixture.historyCache,
+                                  statusCache: fixture.statusCache)
+        store.setDemoMode(true)
+        store.setDemoMode(false)
+        XCTAssertTrue(store.snapshots.isEmpty)
+        XCTAssertEqual(store.states[.claude], .setupRequired)
+        XCTAssertEqual(store.states[.codex], .setupRequired)
+        XCTAssertEqual(store.history, fixture.historyCache.load())
+    }
+
+    func testDemoCannotReplaceAnInFlightSignIn() async throws {
+        let fixture = try Fixture()
+        let store = IOSUsageStore(cache: fixture.cache, historyCache: fixture.historyCache,
+                                  statusCache: fixture.statusCache)
+        await store.signIn(.claude) {
+            store.setDemoMode(true)
+            XCTAssertFalse(store.isDemoMode)
+            throw CancellationError()
+        }
+        XCTAssertFalse(store.isDemoMode)
+        XCTAssertTrue(store.authenticatingProviders.isEmpty)
+    }
+
+    func testPrivacyManifestIsEmbeddedInAppAndWidget() throws {
+        let app = Bundle.main.bundleURL
+        let plugins = try FileManager.default.contentsOfDirectory(
+            at: app.appendingPathComponent("PlugIns"), includingPropertiesForKeys: nil)
+        let widget = try XCTUnwrap(plugins.first { $0.pathExtension == "appex" })
+        for bundle in [app, widget] {
+            let data = try Data(contentsOf: bundle.appendingPathComponent("PrivacyInfo.xcprivacy"))
+            let manifest = try XCTUnwrap(PropertyListSerialization.propertyList(
+                from: data, format: nil) as? [String: Any])
+            XCTAssertEqual(manifest["NSPrivacyTracking"] as? Bool, false)
+            let apis = try XCTUnwrap(manifest["NSPrivacyAccessedAPITypes"] as? [[String: Any]])
+            let defaults = try XCTUnwrap(apis.first {
+                $0["NSPrivacyAccessedAPIType"] as? String == "NSPrivacyAccessedAPICategoryUserDefaults"
+            })
+            XCTAssertEqual(Set(defaults["NSPrivacyAccessedAPITypeReasons"] as? [String] ?? []),
+                           ["CA92.1", "1C8F.1"])
+        }
+    }
+
+    func testReturnReusesFreshBackgroundObservationAndManualRefreshStillWorks() async throws {
+        let fixture = try Fixture()
+        let now = Date.now
+        func reading(_ provider: UsageProviderID) -> ProviderUsageSnapshot {
+            ProviderUsageSnapshot(id: provider,
+                session: UsageWindow(usedPercent: 25, resetsAt: now.addingTimeInterval(7200)),
+                weekly: UsageWindow(usedPercent: 40, resetsAt: nil),
+                observedAt: now, source: .live, message: nil)
+        }
+        let claude = StubAdapter(provider: .claude, result: .success(reading(.claude)))
+        let codex = StubAdapter(provider: .codex, result: .success(reading(.codex)))
+        let background = SharedUsageRefresh(claude: claude, codex: codex,
+            cache: fixture.cache, historyCache: fixture.historyCache)
+        _ = try await background.refresh(context: "background")
+        let store = IOSUsageStore(claude: claude, codex: codex,
+            cache: fixture.cache, historyCache: fixture.historyCache)
+        await store.refresh()
+        let automaticCalls = await claude.fetchCount()
+        XCTAssertEqual(automaticCalls, 1)
+        XCTAssertEqual(store.states[.claude], .live)
+        XCTAssertEqual(store.snapshots.first { $0.id == .claude }?.source, .live)
+        let days = store.history.lastSevenDays(relativeTo: now)
+        let trend = UsageTrend(days: days, providers: [.claude, .codex])
+        XCTAssertEqual(trend.metric, .percent)
+        XCTAssertEqual(trend.value(for: try XCTUnwrap(days.last), provider: .claude), 40)
+        XCTAssertEqual(trend.value(for: try XCTUnwrap(days.last), provider: .codex), 40)
+        await store.refresh(force: true)
+        let manualCalls = await claude.fetchCount()
+        XCTAssertEqual(manualCalls, 2)
+    }
     func testDiagnosticExportsResetWithoutPrivateMessages() throws {
         let fixture = try Fixture()
         let now = Date(timeIntervalSince1970: 1_790_000_000)
@@ -251,6 +390,7 @@ final class IOSUsageStoreTests: XCTestCase {
 private actor StubAdapter: DirectUsageAdapter {
     nonisolated let providerID: UsageProviderID
     private let result: Result<ProviderUsageSnapshot, Error>
+    private var calls = 0
 
     init(provider: UsageProviderID, result: Result<ProviderUsageSnapshot, Error>) {
         providerID = provider
@@ -258,8 +398,10 @@ private actor StubAdapter: DirectUsageAdapter {
     }
 
     func fetchSnapshot() async throws -> ProviderUsageSnapshot {
-        try result.get()
+        calls += 1
+        return try result.get()
     }
+    func fetchCount() -> Int { calls }
 }
 
 private final class Fixture {

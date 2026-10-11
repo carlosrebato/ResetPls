@@ -194,6 +194,14 @@ extension ProviderUsageSnapshot {
         return assessment
     }
 
+    /// Compact detached cards describe only the quota shown as their main value.
+    public func primaryPaceNotice(at now: Date) -> PaceNotice? {
+        switch primaryQuotaID {
+        case .session: sessionPaceStatus(at: now).map(PaceNotice.session)
+        case .weekly: weeklyPaceNotice(at: now).map(PaceNotice.weekly)
+        }
+    }
+
     public func preferredPaceNotice(at now: Date) -> PaceNotice? {
         let weekly = weeklyPaceNotice(at: now)
         let session = sessionPaceStatus(at: now)

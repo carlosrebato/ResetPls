@@ -88,7 +88,20 @@ public final class ProviderDataAccess: @unchecked Sendable {
     }
 
     public func hasUsableAccess(for provider: ProviderDataDirectory) -> Bool {
-        resolvedURL(for: provider) != nil
+        // Resolving a bookmark does not prove that its directory still exists
+        // or that the sandbox permits reading the actual history directory.
+        (try? withAccess(to: provider) { folder in
+            let historyFolder: URL
+            switch provider {
+            case .claude: historyFolder = folder
+            case .claudeCode: historyFolder = folder.appendingPathComponent("projects", isDirectory: true)
+            case .codex: historyFolder = folder.appendingPathComponent("sessions", isDirectory: true)
+            }
+            _ = try FileManager.default.contentsOfDirectory(
+                at: historyFolder, includingPropertiesForKeys: nil
+            )
+            return true
+        }) == true
     }
 
     public func saveAccess(to folder: URL, for provider: ProviderDataDirectory) throws {

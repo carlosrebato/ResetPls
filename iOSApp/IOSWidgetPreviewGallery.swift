@@ -793,10 +793,10 @@ private struct WidgetPreviewChart: View {
     var offTrack = false
     var highRisk = false
 
-    private let claude: [CGFloat] = [22, 31, 19, 46, 38, 51, 43]
+    private let claude: [CGFloat] = [8, 17, 25, 32, 36, 40, 43]
     private var codex: [CGFloat] {
         if highRisk { return [35, 42, 50, 59, 69, 79, 88] }
-        return offTrack ? [35, 39, 46, 52, 61, 70, 78] : [35, 28, 44, 32, 57, 49, 64]
+        return offTrack ? [35, 39, 46, 52, 61, 70, 78] : [25, 62, 0, 14, 26, 39, 47]
     }
 
     var body: some View {
@@ -857,7 +857,11 @@ private struct WidgetPreviewChart: View {
                 y: baseline - (baseline - top) * value / 100
             )
         }
-        let path = smoothPath(points)
+        var path = Path()
+        if let first = points.first {
+            path.move(to: first)
+            for point in points.dropFirst() { path.addLine(to: point) }
+        }
         guard let first = points.first, let last = points.last else { return }
 
         var area = path

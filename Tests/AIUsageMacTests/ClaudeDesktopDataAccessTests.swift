@@ -14,6 +14,32 @@ private struct PathBookmarkCoder: ClaudeDesktopBookmarkCoding {
 }
 
 struct ClaudeDesktopDataAccessTests {
+    @Test func resolvedBookmarkIsNotEnoughForReadableLocalHistory() throws {
+        let suite = "ProviderHistoryAccessTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let access = ProviderDataAccess(defaults: defaults, bookmarkCoder: PathBookmarkCoder())
+        for (provider, child) in [(ProviderDataDirectory.claudeCode, "projects"), (.codex, "sessions")] {
+            let folder = root.appendingPathComponent(provider.folderName)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try access.saveAccess(to: folder, for: provider)
+            #expect(access.hasStoredAccess(for: provider))
+            #expect(access.resolvedURL(for: provider) != nil)
+            #expect(!access.hasUsableAccess(for: provider))
+            let history = folder.appendingPathComponent(child)
+            try FileManager.default.createDirectory(at: history, withIntermediateDirectories: true)
+            #expect(access.hasUsableAccess(for: provider))
+            try FileManager.default.removeItem(at: history)
+            #expect(!access.hasUsableAccess(for: provider))
+            // Regranting a readable directory restores access without account login.
+            try FileManager.default.createDirectory(at: history, withIntermediateDirectories: true)
+            try access.saveAccess(to: folder, for: provider)
+            #expect(access.hasUsableAccess(for: provider))
+        }
+    }
+
     @Test func storesAndResolvesTheSelectedClaudeFolder() throws {
         let suite = "ClaudeDesktopDataAccessTests.\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))

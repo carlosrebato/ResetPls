@@ -126,7 +126,9 @@ private struct UsageWidgetProvider: TimelineProvider {
             date: date,
             claudePercent: [12, 46, 25, 52, 63, 68, 38][index],
             codexPercent: [8, 19, 18, 31, 28, 22, 47][index],
-            activity: true
+            activity: true,
+            claudeWeeklyPercent: [8, 17, 25, 32, 41, 48, 54][index],
+            codexWeeklyPercent: [25, 62, 0, 14, 26, 39, 47][index]
         )
     }) }
 }
@@ -894,7 +896,7 @@ private struct WidgetTrendChart: View {
     ) {
         var segment: [CGPoint] = []
         for (index, day) in days.enumerated() {
-            guard let value = day.percent(for: provider), value.isFinite else {
+            guard let value = day.weeklyPercent(for: provider), value.isFinite else {
                 drawSegment(segment, color: color, baseline: baseline, top: top, context: &context)
                 segment.removeAll(keepingCapacity: true)
                 continue
@@ -916,7 +918,9 @@ private struct WidgetTrendChart: View {
     ) {
         guard let first = points.first else { return }
         if points.count > 1, let last = points.last {
-            let line = smoothPath(points)
+            var line = Path()
+            line.move(to: first)
+            for point in points.dropFirst() { line.addLine(to: point) }
             var area = line
             area.addLine(to: CGPoint(x: last.x, y: baseline))
             area.addLine(to: CGPoint(x: first.x, y: baseline))

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#070708">
+  <title>Privacy policy — ResetPls</title>
+  <meta name="description" content="How ResetPls handles your data on Mac, iPhone and this website.">
+  <link rel="canonical" href="https://resetpls.app/privacy/">
+  <link rel="alternate" hreflang="en" href="https://resetpls.app/privacy/">
+  <link rel="alternate" hreflang="es" href="https://resetpls.app/es/privacy/">
+  <link rel="icon" href="/icon.png">
+  <link rel="stylesheet" href="/src/style.css"><link rel="stylesheet" href="/src/privacy.css">
+</head>
+<body class="privacy-page">
+  <a class="skip" href="#policy">Skip to privacy policy</a>
+  <header class="nav" data-scrolled="true"><a class="brand" href="/en/">ResetPls<span class="footer-dot">.</span></a><nav aria-label="Language"><a href="/es/privacy/" lang="es" hreflang="es">Español</a><a href="/en/">Back to the website ↗</a></nav></header>
+  <main id="policy" class="privacy-content">
+    <p class="eyebrow"><span class="live-dot"></span> YOUR DATA</p>
+    <h1>Privacy policy.</h1>
+    <p class="privacy-date">Last updated: <time datetime="2026-10-08">8 October 2026</time></p>
+    <p class="privacy-intro">Your limits, on your device. ResetPls does not send your conversations, credentials or usage history to the project maintainers.</p>
+    <section><h2>About ResetPls</h2><p>This policy covers the ResetPls Mac and iOS apps, their widgets and resetpls.app. ResetPls is an independent project maintained by Carlos Rebato, unaffiliated with Anthropic or OpenAI. There is no ResetPls account server or cross-device sync.</p></section>
+    <section><h2>What the app reads</h2><p>When you connect Claude or Codex, the app requests your current usage percentages and reset times directly from that provider. Each device connects independently.</p><p>On Mac only, you can grant read-only access to selected local folders for token, activity and API-equivalent cost counters. The app extracts numeric usage information, not conversation content for display or storage. Local credential files are excluded from this optional folder scan. iOS does not read your Mac’s files.</p></section>
+    <section><h2>What stays on your device</h2><ul><li>Usage readings, reset times, update status, daily weekly-quota observations and preferences.</li><li>On Mac, optional token/activity history, streak state and folder-access bookmarks.</li><li>On Mac, a local metrics index with up to 90 days of timestamps, model names, numeric counters, file offsets and hashed identifiers. It does not store prompts, responses or source paths in plain text.</li><li>Provider access and refresh tokens in the device’s Keychain, configured not to sync to other devices.</li></ul><p>The app and its widgets share local readings and preferences through their own App Group. This does not send them to another device or to the maintainers.</p></section>
+    <section><h2>Network access and third parties</h2><p>Signing in and refreshing limits involves the corresponding provider. Credentials are sent only to that provider, not to ResetPls infrastructure. The app has no developer-operated analytics, advertising or tracking service.</p><p>Claude authorization requests the profile scope. The public Codex client uses OpenID, profile, email, offline-access and connector scopes; ResetPls uses it to request usage counters, not to invoke connectors. The usage endpoints are not documented third-party integration APIs.</p><p>Anthropic and OpenAI handle authentication and requests under their own privacy policies: <a href="https://www.anthropic.com/legal/privacy">Anthropic</a> and <a href="https://openai.com/policies/privacy-policy/">OpenAI</a>.</p><p>Demo values are synthetic. Refreshing the app in demo mode does not query a provider or write sample values into your real history. Installed widgets use real account data separately.</p></section>
+    <section><h2>Diagnostics and support</h2><p>Diagnostics are not sent automatically. If you choose to export and share a report, it includes limits, reset times, version and update status, but excludes credentials and conversation content. The destination you choose receives that report. Do not post credentials or conversations in public support issues.</p></section>
+    <section><h2>Your choices and stored history</h2><p>You can connect either provider or both, sign out of each separately and choose whether to grant local folder access on Mac. Signing out removes that provider’s saved authorization from the app; local historical readings may remain. Uninstalling alone should not be relied on to remove Keychain credentials: sign out first.</p><p>History is local, not an account held by the maintainers. For help removing local data, contact the project through <a href="https://github.com/carlosrebato/ResetPls/issues/new/choose">support</a>.</p></section>
+    <section><h2>This website</h2><p>This static website is hosted by Cloudflare. We do not add advertising trackers, analytics cookies or a sign-in system. Cloudflare may process technical request information, such as your IP address, browser information and request time, to deliver and secure the site. See <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare’s privacy policy</a>.</p><p>If you follow links to GitHub, Ko-fi, Apple or a provider, those services handle your visit under their own policies.</p></section>
+    <section><h2>Contact and changes</h2><p>For privacy questions, contact Carlos Rebato through <a href="https://github.com/carlosrebato/ResetPls/issues/new/choose">ResetPls support</a>. We update this page when the app’s data practices change and show the revision date above.</p></section>
+  </main>
+  <footer><a class="brand" href="/en/">ResetPls<span class="footer-dot">.</span></a><nav aria-label="Help"><a href="/es/privacy/" lang="es" hreflang="es">Español</a><a href="https://github.com/carlosrebato/ResetPls">GitHub ↗</a></nav></footer>
+</body>
+</html>

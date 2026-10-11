@@ -8,7 +8,7 @@ DERIVED_DATA="${AI_USAGE_DERIVED_DATA:-/private/tmp/AIUsageMacGroupDerivedData}"
 DEVELOPMENT_TEAM="$AI_USAGE_DEVELOPMENT_TEAM"
 APP_PATH="$DERIVED_DATA/Build/Products/Debug/ResetPls.app"
 EXPECTED_BUNDLE_ID="${AI_USAGE_APP_BUNDLE_ID:-com.example.aiusage}"
-EXPECTED_APP_GROUP="${AI_USAGE_APP_GROUP:-group.com.example.aiusage}"
+EXPECTED_APP_GROUP="${AI_USAGE_APP_GROUP:-$DEVELOPMENT_TEAM.com.carlosrebato.aiusage}"
 
 cd "$ROOT"
 xcodebuild \
@@ -56,6 +56,22 @@ if ! printf '%s' "$WIDGET_ENTITLEMENTS" | grep -Fq "<string>$EXPECTED_APP_GROUP<
   echo "Widget is missing the expected App Group entitlement: $EXPECTED_APP_GROUP" >&2
   exit 1
 fi
+
+# A declaration is not an authorization. Team-prefixed macOS groups are
+# authorized by the signing team; group.* IDs require a profile grant.
+case "$EXPECTED_APP_GROUP" in
+  "$DEVELOPMENT_TEAM".*) ;;
+  *)
+    for bundle in "$APP_PATH" "$WIDGET_PATH"; do
+      profile="$bundle/Contents/embedded.provisionprofile"
+      grants="$(security cms -D -i "$profile" 2>/dev/null | sed -n '/<key>com.apple.security.application-groups<\/key>/,/<\/array>/p' || true)"
+      if ! printf '%s' "$grants" | grep -Fq "<string>$EXPECTED_APP_GROUP</string>"; then
+        echo "Provisioning profile does not authorize App Group $EXPECTED_APP_GROUP in $bundle" >&2
+        exit 1
+      fi
+    done
+    ;;
+esac
 
 echo "Signed development app: $APP_PATH"
 echo "Bundle identifier: $ACTUAL_BUNDLE_ID"

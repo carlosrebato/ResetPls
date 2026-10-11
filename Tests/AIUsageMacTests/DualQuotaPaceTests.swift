@@ -32,6 +32,21 @@ struct DualQuotaPaceTests {
         #expect(reading.signal(at: now) == .normal)
     }
 
+    @Test func detachedNoticeAlwaysMatchesThePrimaryQuota() throws {
+        for weekly in [10.0, 25, 32, 40] {
+            let reading = snapshot(weekly: weekly)
+            #expect(reading.primaryPaceNotice(at: now) == .session(.onTrack))
+        }
+        let bothRisky = snapshot(session: 60, weekly: 40, sessionElapsedMinutes: 60)
+        #expect(bothRisky.primaryPaceNotice(at: now) ==
+            bothRisky.sessionPaceStatus(at: now).map(PaceNotice.session))
+        let weeklyOnly = snapshot(session: nil, weekly: 40, provider: .codex)
+        let week = try #require(weeklyOnly.weeklyPaceNotice(at: now))
+        #expect(weeklyOnly.primaryPaceNotice(at: now) == .weekly(week))
+        let blocked = snapshot(session: 100, weekly: 40)
+        #expect(blocked.primaryPaceNotice(at: now) == nil)
+    }
+
     @Test func tightSecondaryWeekAddsContextWithoutTurningTheDotAmber() throws {
         let reading = snapshot(weekly: 25)
         let week = try #require(reading.weeklyPaceNotice(at: now))

@@ -1,7 +1,9 @@
 import AIUsageCore
 import Foundation
+import os
 
 public protocol LocalUsageMetricsReading: Sendable {
+    func invalidateLocalHistory(for provider: UsageProviderID) async
     func weeklyTotals(
         for provider: UsageProviderID,
         periodStart: Date,
@@ -22,6 +24,7 @@ public protocol LocalUsageMetricsReading: Sendable {
 }
 
 public extension LocalUsageMetricsReading {
+    func invalidateLocalHistory(for _: UsageProviderID) async {}
     func activityDates(
         for _: UsageProviderID,
         periodStart _: Date,
@@ -59,7 +62,9 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
     private let claudeRoot: URL?
     private let codexRoot: URL?
     private let dataAccess: ProviderDataAccess?
-    private let index: LocalUsageMetricsIndex?
+    private var index: LocalUsageMetricsIndex?
+    private let indexURL: URL
+    private let logger = Logger(subsystem: "com.carlosrebato.aiusage", category: "LocalMetrics")
     private let refreshInterval: TimeInterval
     private var lastRefresh: [UsageProviderID: Date] = [:]
     private var indexGeneration: [UsageProviderID: Int] = [:]
@@ -83,14 +88,14 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
             ?? "com.example.aiusage"
         let cacheBase = homeDirectory?
             .appendingPathComponent("Library/Caches", isDirectory: true)
-            ?? FileManager.default.containerURL(
-                forSecurityApplicationGroupIdentifier: AIUsageAppGroup.identifier
-            )
             ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
         let resolvedIndexURL = indexURL ?? cacheBase
             .appendingPathComponent(bundleIdentifier, isDirectory: true)
             .appendingPathComponent("usage-metrics-v1.sqlite3")
-        index = try? LocalUsageMetricsIndex(databaseURL: resolvedIndexURL)
+        // Raw local metrics are private to the Mac app, not widget data. An
+        // unavailable App Group must never disable reading granted folders.
+        self.indexURL = resolvedIndexURL
+        index = nil
         self.refreshInterval = refreshInterval
     }
 
@@ -249,7 +254,22 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
         return aggregate
     }
 
+    public func invalidateLocalHistory(for provider: UsageProviderID) async {
+        lastRefresh.removeValue(forKey: provider)
+        weeklyCache.removeValue(forKey: provider)
+        dailyCache.removeValue(forKey: provider)
+    }
+
     private func refreshIndexIfNeeded(for provider: UsageProviderID) {
+        if index == nil {
+            do {
+                index = try LocalUsageMetricsIndex(databaseURL: indexURL)
+            } catch {
+                // Retry on the next refresh instead of permanently retaining
+                // a failed initializer. Do not log paths or conversation data.
+                logger.error("Local token index could not be opened (code \((error as NSError).code))")
+            }
+        }
         guard let index else { return }
         if let lastRefresh = lastRefresh[provider],
            Date.now.timeIntervalSince(lastRefresh) < refreshInterval {

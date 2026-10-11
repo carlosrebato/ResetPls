@@ -104,7 +104,8 @@ public struct UsageCompactMetrics: View {
             .tracking(0.45)
             .monospacedDigit()
             .lineLimit(1)
-            UsagePaceLine(snapshot: snapshot, now: now, language: language)
+            UsagePaceLine(snapshot: snapshot, now: now, language: language,
+                          primaryOnly: true)
         }
         .padding(.horizontal, 18)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -240,6 +241,7 @@ public struct UsageDetailedMetrics: View {
                     value: UsageResetFormatter.string(until: snapshot.availabilityReset, relativeTo: now),
                     color: snapshot.availability == .available ? nil : UsageTheme.red
                 )
+                #if os(macOS)
                 TokenDetailMetric(
                     label: "TOKENS",
                     value: snapshot.weeklyTotals.map { compactTokens($0.totalTokens) } ?? "—",
@@ -248,6 +250,7 @@ public struct UsageDetailedMetrics: View {
                     } ?? missingLocalHistoryHelp(language: language)
                 )
                 .zIndex(1)
+                #endif
                 Spacer()
                 if snapshot.source == .cached {
                     Label {
@@ -361,6 +364,10 @@ private struct TokenDetailMetric: View {
 }
 
 public struct UsageTrendFooter: View {
+#if os(macOS)
+    @AppStorage("usageTrendMetric.v1") private var selectedMetric: UsageTrend.Metric = .percent
+    @State private var showsMetricOptions = false
+#endif
     public let history: UsageHistory
     public let now: Date
     public let language: AppLanguage
@@ -393,13 +400,12 @@ public struct UsageTrendFooter: View {
     public var body: some View {
         let trend = UsageTrend(
             days: history.lastSevenDays(relativeTo: now, currentDayProviders: currentDayProviders),
-            providers: providers
+            providers: providers,
+            metric: chartMetric
         )
         VStack(spacing: compact ? 8 : 14) {
             HStack {
-                Text(trend.metric == .tokens
-                    ? language.text("TOKENS · LAST 7 DAYS", "TOKENS · ÚLTIMOS 7 DÍAS")
-                    : language.text("QUOTA · LAST 7 DAYS", "CUOTA · ÚLTIMOS 7 DÍAS"))
+                chartTitle
                     .font(.system(size: 9, weight: .semibold))
                     .tracking(1.15)
                     .foregroundStyle(UsageTheme.mutedText)
@@ -425,6 +431,70 @@ public struct UsageTrendFooter: View {
             Rectangle().fill(UsageTheme.hairline).frame(height: 1)
         }
     }
+
+    private var chartMetric: UsageTrend.Metric {
+#if os(macOS)
+        selectedMetric
+#else
+        .percent
+#endif
+    }
+
+    @ViewBuilder private var chartTitle: some View {
+#if os(macOS)
+        Button { showsMetricOptions.toggle() } label: {
+            HStack(spacing: 4) {
+                Text(chartMetric == .tokens ? "TOKENS" : language.text("QUOTA", "CUOTA"))
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(UsageTheme.tertiaryText)
+                Text(language.text("· LAST 7 DAYS", "· ÚLTIMOS 7 DÍAS"))
+            }
+            // Style the actual label, not a native menu-control environment.
+            .font(.system(size: 9, weight: .semibold))
+            .tracking(1.15)
+            .foregroundStyle(UsageTheme.mutedText)
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+        .popover(isPresented: $showsMetricOptions, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 2) {
+                metricOption(.percent, title: language.text("Weekly quota (%)", "Cuota semanal (%)"))
+                metricOption(.tokens, title: "Tokens")
+            }
+            .padding(8)
+            .frame(width: 165)
+            .preferredColorScheme(.dark)
+        }
+        .accessibilityLabel(language.text("Chart metric", "Medida de la gráfica"))
+        .accessibilityValue(chartMetric == .tokens ? "Tokens" : language.text("Weekly quota (%)", "Cuota semanal (%)"))
+#else
+        Text(language.text("QUOTA · LAST 7 DAYS", "CUOTA · ÚLTIMOS 7 DÍAS"))
+#endif
+    }
+
+#if os(macOS)
+    private func metricOption(_ metric: UsageTrend.Metric, title: String) -> some View {
+        Button {
+            selectedMetric = metric
+            showsMetricOptions = false
+        } label: {
+            HStack(spacing: 7) {
+                Image(systemName: "checkmark")
+                    .opacity(selectedMetric == metric ? 1 : 0)
+                Text(title)
+                Spacer(minLength: 0)
+            }
+            .font(.system(size: 12))
+            .tracking(0)
+            .foregroundStyle(UsageTheme.tertiaryText)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+#endif
 
     private func legend(_ provider: UsageProviderID, trend: UsageTrend) -> some View {
         let title = provider == .claude ? "Claude" : "Codex"
@@ -461,12 +531,19 @@ public struct UsageTrendFooter: View {
         let visibleCount = min(count, 15)
 
         return VStack(spacing: compact ? 6 : 11) {
-            HStack(alignment: .firstTextBaseline, spacing: compact ? 6 : 8) {
-                Text(hasEvidence ? String(count) : "—")
-                    .font(.system(size: compact ? 21 : 28, weight: .bold))
-                    .tracking(-0.8)
-                    .monospacedDigit()
-                    .foregroundStyle(UsageTheme.green)
+            HStack(alignment: hasEvidence ? .firstTextBaseline : .center, spacing: compact ? 6 : 8) {
+                if hasEvidence {
+                    Text(String(count))
+                        .font(.system(size: compact ? 21 : 28, weight: .bold))
+                        .tracking(-0.8)
+                        .monospacedDigit()
+                        .foregroundStyle(UsageTheme.green)
+                } else {
+                    Rectangle()
+                        .fill(UsageTheme.green)
+                        .frame(width: compact ? 21 : 28, height: compact ? 3 : 4)
+                        .accessibilityLabel(language.text("No streak data", "Sin datos de racha"))
+                }
                 Text(language.text("DAY STREAK", "RACHA DIARIA"))
                     .font(.system(size: compact ? 8 : 9, weight: .semibold))
                     .tracking(1.15)
@@ -509,6 +586,8 @@ public struct UsageTrendFooter: View {
 private struct UsageTrendChart: View {
     let trend: UsageTrend
     let language: AppLanguage
+    @State private var hoverLocation: CGPoint?
+    @GestureState private var touchLocation: CGPoint?
 
     private var days: [UsageHistoryDay] { trend.days }
     private var providers: Set<UsageProviderID> { trend.providers }
@@ -522,17 +601,24 @@ private struct UsageTrendChart: View {
             // generous gutter made the seven-day series look horizontally cropped.
             let labelGutter = endpointLabels.isEmpty ? 8 : labelWidth + 6
             let right = max(left, size.width - labelGutter)
-            let top: CGFloat = 16
+            // Reserve a header lane for inspection values, clear of even the
+            // highest point's ring. Keep geometry stable when hovering/touching.
+            let top: CGFloat = 34
             let baseline = max(top + 36, size.height - 22)
             let plotHeight = baseline - top
             let step = (right - left) / CGFloat(max(days.count - 1, 1))
             let xPositions = days.indices.map { left + CGFloat($0) * step }
+            let inspectionLocation = touchLocation ?? hoverLocation
+            let inspectedIndex = inspectionLocation.flatMap {
+                UsageTrendInspection.index(at: $0, size: size, plotLeft: left,
+                                           plotRight: right, dayCount: days.count)
+            }
             let hasMeasurements = providers.contains { trend.hasSeries(for: $0) }
             if hasMeasurements {
                 context.draw(
                     Text(trend.metric == .tokens ? compactTokens(Int(trend.scaleMaximum)) : "100%")
                         .font(.system(size: 8, weight: .medium))
-                        .foregroundStyle(UsageTheme.mutedText),
+                        .foregroundStyle(inspectedIndex == nil || inspectedIndex == days.count - 1 ? UsageTheme.mutedText : .clear),
                     at: CGPoint(x: left, y: 4),
                     anchor: .topLeading
                 )
@@ -607,7 +693,68 @@ private struct UsageTrendChart: View {
                     anchor: .center
                 )
             }
+            if let inspectedIndex {
+                drawInspection(index: inspectedIndex, x: xPositions[inspectedIndex],
+                               top: top, baseline: baseline, plotHeight: plotHeight,
+                               size: size, context: &context)
+            }
         }
+        .contentShape(Rectangle())
+        #if os(macOS)
+        .onContinuousHover { phase in
+            switch phase {
+            case .active(let location): hoverLocation = location
+            case .ended: hoverLocation = nil
+            }
+        }
+        #else
+        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
+            .updating($touchLocation) { value, location, _ in
+                location = value.location
+            })
+        #endif
+    }
+
+    private func drawInspection(index: Int, x: CGFloat, top: CGFloat, baseline: CGFloat,
+                                plotHeight: CGFloat, size: CGSize,
+                                context: inout GraphicsContext) {
+        var guide = Path()
+        guide.move(to: CGPoint(x: x, y: top))
+        guide.addLine(to: CGPoint(x: x, y: baseline))
+        context.stroke(guide, with: .color(.white.opacity(0.25)),
+                       style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+
+        let day = days[index]
+        var label = Text("")
+        for provider in UsageProviderID.allCases where providers.contains(provider) {
+            if !labelIsFirst(provider) { label = label + Text("  ·  ").foregroundColor(UsageTheme.mutedText) }
+            let value = trend.value(for: day, provider: provider)
+            let formatted = value.map {
+                trend.metric == .tokens ? compactTokens(Int($0)) : "\(Int($0.rounded()))%"
+            } ?? "—"
+            label = label + Text(formatted)
+                .foregroundColor(UsageTheme.provider(provider))
+            if let normalized = trend.normalizedValue(for: day, provider: provider) {
+                let y = baseline - plotHeight * normalized
+                context.stroke(Path(ellipseIn: CGRect(x: x - 5, y: y - 5, width: 10, height: 10)),
+                               with: .color(UsageTheme.provider(provider)), lineWidth: 2)
+            }
+        }
+        // Today's values already appear at the endpoints; retain only the highlights.
+        guard index < days.count - 1 else { return }
+
+        let resolved = context.resolve(label.font(.system(size: 9, weight: .semibold)))
+        let measured = resolved.measure(in: CGSize(width: max(size.width - 20, 1), height: .infinity))
+        let width = min(measured.width + 14, size.width - 4)
+        let rect = CGRect(x: min(max(x - width / 2, 2), size.width - width - 2),
+                          y: 0, width: width, height: measured.height + 10)
+        context.fill(Path(roundedRect: rect, cornerRadius: 5), with: .color(UsageTheme.stage))
+        context.stroke(Path(roundedRect: rect, cornerRadius: 5), with: .color(.white.opacity(0.12)), lineWidth: 1)
+        context.draw(resolved, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
+    }
+
+    private func labelIsFirst(_ provider: UsageProviderID) -> Bool {
+        UsageProviderID.allCases.first(where: { providers.contains($0) }) == provider
     }
 
     private func drawDottedGuide(
@@ -821,7 +968,8 @@ public struct UsageFloatingMetrics: View {
                         .tracking(0.7)
                         .monospacedDigit()
                         .foregroundStyle(UsageTheme.availabilityText(snapshot))
-                    UsagePaceLine(snapshot: snapshot, now: now, language: language)
+                    UsagePaceLine(snapshot: snapshot, now: now, language: language,
+                                  primaryOnly: true, allowsHelp: false)
                 }
             }
         }
@@ -837,11 +985,15 @@ struct UsagePaceLine: View {
     let snapshot: ProviderUsageSnapshot
     let now: Date
     let language: AppLanguage
+    var primaryOnly = false
+    var allowsHelp = true
 
     @ViewBuilder
     var body: some View {
-        let sessionStatus = snapshot.sessionPaceStatus(at: now)
-        let weeklyRisk = snapshot.weeklyPaceNotice(at: now)
+        let sessionStatus = primaryOnly && snapshot.primaryQuotaID != .session
+            ? nil : snapshot.sessionPaceStatus(at: now)
+        let weeklyRisk = primaryOnly && snapshot.primaryQuotaID != .weekly
+            ? nil : snapshot.weeklyPaceNotice(at: now)
         if sessionStatus != nil || weeklyRisk != nil {
             VStack(alignment: .leading, spacing: 5) {
                 if let sessionStatus {
@@ -857,7 +1009,8 @@ struct UsagePaceLine: View {
                         text: language.weeklyRiskText(weeklyRisk),
                         help: language.weeklyRiskHelp(weeklyRisk),
                         color: snapshot.primaryQuotaID == .weekly
-                            ? weeklyRiskColor(weeklyRisk.state) : UsageTheme.mutedText
+                            ? weeklyRiskColor(weeklyRisk.state) : UsageTheme.mutedText,
+                        allowsHelp: allowsHelp
                     )
                 }
             }
@@ -884,6 +1037,7 @@ private struct WeeklyRiskLine: View {
     let text: String
     let help: String
     let color: Color
+    var allowsHelp = true
     @State private var showsHelp = false
 
     var body: some View {
@@ -893,12 +1047,12 @@ private struct WeeklyRiskLine: View {
             .fixedSize(horizontal: false, vertical: true)
             .contentShape(Rectangle())
             #if os(macOS)
-            .onHover { showsHelp = $0 }
+            .onHover { showsHelp = allowsHelp && $0 }
             #else
-            .onTapGesture { showsHelp.toggle() }
+            .onTapGesture { if allowsHelp { showsHelp.toggle() } }
             #endif
             .overlay(alignment: .bottomLeading) {
-                if showsHelp {
+                if allowsHelp && showsHelp {
                     Text(help)
                         .font(.system(size: 11))
                         .foregroundStyle(UsageTheme.primaryText)
@@ -1135,17 +1289,10 @@ func equivalentCostHelp(
 }
 
 private func missingLocalHistoryHelp(language: AppLanguage) -> String {
-    #if os(iOS)
-    language.text(
-        "Token totals aren’t provided by this service on iOS. On Mac, ResetPls reads them from the local usage history.",
-        "Este servicio no proporciona los totales de tokens en iOS. En Mac, ResetPls los lee del histórico de uso local."
-    )
-    #else
     language.text(
         "Token history is unavailable. Add read-only access in Settings to restore token totals and estimated cost.",
         "El histórico de tokens no está disponible. Añade acceso de solo lectura en Ajustes para recuperar los tokens y el coste estimado."
     )
-    #endif
 }
 
 func tokenBreakdown(

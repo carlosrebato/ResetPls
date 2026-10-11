@@ -25,12 +25,30 @@ struct ProjectLinksTests {
     @Test func bothPlatformsUseThePublicSourceRepositoryForSupport() {
         #expect(ProjectLinks.repository == "https://github.com/carlosrebato/ResetPls")
         #expect(ProjectLinks.help == ProjectLinks.repository + "#readme")
-        #expect(ProjectLinks.privacy == ProjectLinks.repository + "/blob/main/PRIVACY.md")
+        #expect(ProjectLinks.privacy == ProjectLinks.website + "/privacy/")
         #expect(ProjectLinks.reportIssue == ProjectLinks.repository + "/issues/new/choose")
         for link in [ProjectLinks.repository, ProjectLinks.website,
                      ProjectLinks.help, ProjectLinks.privacy, ProjectLinks.reportIssue] {
             #expect(URL(string: link)?.scheme == "https")
             #expect(!link.contains("/releases") && !link.contains("appcast"))
+        }
+    }
+
+    @Test func privacyPagesAndLandingLinksUseTheMatchingLanguage() throws {
+        for (path, language, policy) in [
+            ("landing/index.html", "en", "/privacy/"),
+            ("landing/en/index.html", "en", "/privacy/"),
+            ("landing/es/index.html", "es", "/es/privacy/")
+        ] {
+            let html = try String(contentsOf: repositoryRoot.appendingPathComponent(path), encoding: .utf8)
+            #expect(html.contains("href=\"\(policy)\""))
+            #expect(!html.contains("/blob/main/PRIVACY.md"))
+            let page = try String(contentsOf: repositoryRoot.appendingPathComponent("landing\(policy)index.html"), encoding: .utf8)
+            #expect(page.contains("<html lang=\"\(language)\">"))
+            #expect(page.contains("hreflang=\"en\""))
+            #expect(page.contains("hreflang=\"es\""))
+            #expect(!page.contains("<script"))
+            #expect(page.components(separatedBy: "<section>").count == 9)
         }
     }
 }

@@ -66,14 +66,8 @@ struct FloatingPanelView: View {
 
     private var panelSize: NSSize {
         let extraHeight = visibleSnapshots.reduce(CGFloat.zero) { total, snapshot in
-            var lines: [String] = []
-            if let status = snapshot.sessionPaceStatus(at: now) {
-                lines.append(language.sessionPaceText(status))
-            }
-            if let risk = snapshot.weeklyPaceNotice(at: now) {
-                lines.append(language.weeklyRiskText(risk))
-            }
-            return total + lines.reduce(CGFloat.zero) { $0 + paceLineHeight($1) }
+            guard let notice = snapshot.primaryPaceNotice(at: now) else { return total }
+            return total + paceLineHeight(language.paceNoticeText(notice))
         }
         return NSSize(width: Self.size.width, height: Self.size.height + extraHeight)
     }

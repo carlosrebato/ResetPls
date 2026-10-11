@@ -7,6 +7,12 @@ public struct UsageHistoryDay: Identifiable, Equatable, Codable, Sendable {
     public var claudeTokens: Int?
     public var codexTokens: Int?
     public var activity: Bool?
+    // Separate fields: legacy percentages were daily peaks of the primary
+    // window (Claude session, Codex week), not comparable weekly balances.
+    public var claudeWeeklyPercent: Double?
+    public var codexWeeklyPercent: Double?
+    public var claudeWeeklyObservedAt: Date?
+    public var codexWeeklyObservedAt: Date?
 
     public init(
         date: Date,
@@ -14,7 +20,11 @@ public struct UsageHistoryDay: Identifiable, Equatable, Codable, Sendable {
         codexPercent: Double? = nil,
         claudeTokens: Int? = nil,
         codexTokens: Int? = nil,
-        activity: Bool? = nil
+        activity: Bool? = nil,
+        claudeWeeklyPercent: Double? = nil,
+        codexWeeklyPercent: Double? = nil,
+        claudeWeeklyObservedAt: Date? = nil,
+        codexWeeklyObservedAt: Date? = nil
     ) {
         self.date = date
         self.claudePercent = claudePercent
@@ -22,6 +32,10 @@ public struct UsageHistoryDay: Identifiable, Equatable, Codable, Sendable {
         self.claudeTokens = claudeTokens
         self.codexTokens = codexTokens
         self.activity = activity
+        self.claudeWeeklyPercent = claudeWeeklyPercent
+        self.codexWeeklyPercent = codexWeeklyPercent
+        self.claudeWeeklyObservedAt = claudeWeeklyObservedAt
+        self.codexWeeklyObservedAt = codexWeeklyObservedAt
     }
 
     public var id: Date { date }
@@ -43,6 +57,13 @@ public struct UsageHistoryDay: Identifiable, Equatable, Codable, Sendable {
         switch provider {
         case .claude: claudeTokens
         case .codex: codexTokens
+        }
+    }
+
+    public func weeklyPercent(for provider: UsageProviderID) -> Double? {
+        switch provider {
+        case .claude: claudeWeeklyPercent
+        case .codex: codexWeeklyPercent
         }
     }
 }
@@ -76,10 +97,12 @@ public struct UsageHistory: Equatable, Codable, Sendable {
         if !currentDayProviders.contains(.claude) {
             result[today].claudePercent = nil
             result[today].claudeTokens = nil
+            result[today].claudeWeeklyPercent = nil
         }
         if !currentDayProviders.contains(.codex) {
             result[today].codexPercent = nil
             result[today].codexTokens = nil
+            result[today].codexWeeklyPercent = nil
         }
         return result
     }
@@ -130,9 +153,34 @@ public struct UsageHistoryCache: Sendable {
     ) throws -> UsageHistory {
         var history = load()
         let day = calendar.startOfDay(for: now)
+        for snapshot in snapshots where snapshot.source == .live {
+            if let weekly = snapshot.weekly.usedPercent, weekly.isFinite {
+                // Refresh may finish after its start clock (even after midnight).
+                // Attribute quota to the measurement's date, not refresh start.
+                let observedDay = calendar.startOfDay(for: snapshot.observedAt)
+                var entry = history.days.first { calendar.isDate($0.date, inSameDayAs: observedDay) }
+                    ?? UsageHistoryDay(date: observedDay)
+                let value = min(max(weekly, 0), 100)
+                // Last observation, not maximum: a reset must be allowed to
+                // lower the balance, including a courtesy reset midweek.
+                switch snapshot.id {
+                case .claude:
+                    if snapshot.observedAt >= (entry.claudeWeeklyObservedAt ?? .distantPast) {
+                        entry.claudeWeeklyPercent = value
+                        entry.claudeWeeklyObservedAt = snapshot.observedAt
+                    }
+                case .codex:
+                    if snapshot.observedAt >= (entry.codexWeeklyObservedAt ?? .distantPast) {
+                        entry.codexWeeklyPercent = value
+                        entry.codexWeeklyObservedAt = snapshot.observedAt
+                    }
+                }
+                history.days.removeAll { calendar.isDate($0.date, inSameDayAs: observedDay) }
+                history.days.append(entry)
+            }
+        }
         var entry = history.days.first { calendar.isDate($0.date, inSameDayAs: day) }
             ?? UsageHistoryDay(date: day)
-
         for snapshot in snapshots where snapshot.source == .live {
             guard let value = snapshot.primaryDisplayWindow.usedPercent, value.isFinite else { continue }
             switch snapshot.id {
@@ -252,7 +300,7 @@ public struct UsageHistoryCache: Sendable {
 /// One metric and one scale for all visible providers. Missing measurements stay
 /// optional so the renderer can break a line instead of drawing a false zero.
 public struct UsageTrend: Sendable {
-    public enum Metric: Equatable, Sendable {
+    public enum Metric: String, Equatable, Sendable {
         case tokens
         case percent
     }
@@ -262,14 +310,14 @@ public struct UsageTrend: Sendable {
     public let metric: Metric
     public let scaleMaximum: Double
 
-    public init(days: [UsageHistoryDay], providers: Set<UsageProviderID>) {
+    public init(days: [UsageHistoryDay], providers: Set<UsageProviderID>, metric: Metric = .percent) {
         self.days = days
         self.providers = providers
         let tokenValues = providers.flatMap { provider in
             days.compactMap { $0.tokens(for: provider) }
         }
-        metric = tokenValues.isEmpty ? .percent : .tokens
-        scaleMaximum = tokenValues.isEmpty ? 100 : Double(max(tokenValues.max() ?? 0, 1))
+        self.metric = metric
+        scaleMaximum = metric == .percent ? 100 : Double(max(tokenValues.max() ?? 0, 1))
     }
 
     public func value(for day: UsageHistoryDay, provider: UsageProviderID) -> Double? {
@@ -278,7 +326,7 @@ public struct UsageTrend: Sendable {
         // Do not fabricate cached measurements, activity, or a token series
         // for a provider whose history only contains quota percentages.
         return measuredValue(for: day, provider: provider)
-            ?? (hasSeries(for: provider) ? 0 : nil)
+            ?? (metric == .tokens && hasSeries(for: provider) ? 0 : nil)
     }
 
     private func measuredValue(for day: UsageHistoryDay, provider: UsageProviderID) -> Double? {
@@ -286,7 +334,7 @@ public struct UsageTrend: Sendable {
         case .tokens:
             return day.tokens(for: provider).map { Double(max($0, 0)) }
         case .percent:
-            guard let percent = day.percent(for: provider), percent.isFinite else { return nil }
+            guard let percent = day.weeklyPercent(for: provider), percent.isFinite else { return nil }
             return min(max(percent, 0), 100)
         }
     }
