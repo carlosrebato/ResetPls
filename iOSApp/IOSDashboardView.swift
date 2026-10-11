@@ -84,27 +84,30 @@ struct IOSDashboardView: View {
                 }
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(now, style: .time)
-                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(UsageTheme.primaryText)
-                freshnessLine
-            }
+            HStack(alignment: .center, spacing: 6) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(now, style: .time)
+                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(UsageTheme.primaryText)
+                    freshnessLine
+                }
 
-            Button {
-                Task { await store.refresh(force: true) }
-            } label: {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundStyle(UsageTheme.secondaryText)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                Button {
+                    Task { await store.refresh(force: true) }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(UsageTheme.mutedText.opacity(0.72))
+                        .frame(width: 14, height: 44)
+                        // Keep a generous touch target without spacing the visible icon away.
+                        .contentShape(Rectangle().inset(by: -15))
+                }
+                .buttonStyle(.plain)
+                .disabled(store.isRefreshing)
+                .opacity(store.isRefreshing ? 0.45 : 1)
+                .accessibilityLabel(language.text("Refresh usage", "Actualizar uso"))
+                .accessibilityHint(language.text("Updates the service limits", "Actualiza los límites de los servicios"))
             }
-            .buttonStyle(.plain)
-            .disabled(store.isRefreshing)
-            .opacity(store.isRefreshing ? 0.45 : 1)
-            .accessibilityLabel(language.text("Refresh usage", "Actualizar uso"))
-            .accessibilityHint(language.text("Updates the service limits", "Actualiza los límites de los servicios"))
         }
     }
 
