@@ -630,6 +630,8 @@ private struct UsageWidgetView: View {
                         ProviderGlyph(provider: snapshot.id, size: 13, color: .primary.opacity(0.9))
                         Text(percent(snapshot.primaryDisplayWindow.usedPercent))
                             .font(.system(size: 15, weight: .bold)).monospacedDigit()
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
                             .frame(width: 40, alignment: .leading)
                         accessoryMeter(snapshot)
                         Text(actionLabel(for: snapshot.id) ?? (isStale(snapshot)

@@ -8,6 +8,95 @@ import XCTest
 
 @MainActor
 final class IOSUsageStoreTests: XCTestCase {
+    func testFinalDashboardRendersAtNarrowAndRegularIPhoneWidths() async throws {
+        let fixture = try Fixture()
+        let store = IOSUsageStore(
+            claude: StubAdapter(provider: .claude, result: .success(Self.snapshot(provider: .claude, percent: 100, source: .live))),
+            codex: StubAdapter(provider: .codex, result: .success(Self.snapshot(provider: .codex, percent: 95, source: .live))),
+            cache: fixture.cache, historyCache: fixture.historyCache, statusCache: fixture.statusCache)
+        await store.refresh(force: true)
+        let oldLanguage = UserDefaults.standard.string(forKey: AppLanguage.preferenceKey)
+        defer {
+            if let oldLanguage { UserDefaults.standard.set(oldLanguage, forKey: AppLanguage.preferenceKey) }
+            else { UserDefaults.standard.removeObject(forKey: AppLanguage.preferenceKey) }
+        }
+        let output = FileManager.default.temporaryDirectory.appendingPathComponent("ResetPlsFinalDashboardRenders")
+        try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
+        for language in [AppLanguage.english, .spanish] {
+            UserDefaults.standard.set(language.rawValue, forKey: AppLanguage.preferenceKey)
+            for width in [320.0, 393.0] {
+                let controller = UIHostingController(rootView: IOSDashboardView().environmentObject(store)
+                    .frame(width: width, height: 852))
+                let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.first as? UIWindowScene)
+                let window = UIWindow(windowScene: scene)
+                window.frame = CGRect(x: 0, y: 0, width: width, height: 852)
+                window.rootViewController = controller
+                window.makeKeyAndVisible()
+                controller.view.layoutIfNeeded()
+                try await Task.sleep(for: .milliseconds(150))
+                let image = UIGraphicsImageRenderer(size: CGSize(width: width, height: 852)).image { _ in
+                    controller.view.drawHierarchy(in: controller.view.bounds, afterScreenUpdates: true)
+                }
+                window.isHidden = true
+                try XCTUnwrap(image.pngData()).write(to: output.appendingPathComponent("\(language.rawValue)-\(Int(width)).png"))
+                let request = VNRecognizeTextRequest()
+                request.recognitionLevel = .accurate
+                try VNImageRequestHandler(cgImage: try XCTUnwrap(image.cgImage)).perform([request])
+                let text = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: " ")
+                XCTAssertTrue(text.contains("Claude"), text)
+                XCTAssertTrue(text.contains("Codex"), text)
+                XCTAssertFalse(text.uppercased().contains("TOKENS"), text)
+            }
+        }
+        print("Dashboard renders: \(output.path)")
+    }
+
+    func testReturnAfterLongInactivityReplacesCachedQuotaAndRecordsReset() async throws {
+        let fixture = try Fixture()
+        let oldDate = Date.now.addingTimeInterval(-4 * 86400)
+        let old = ProviderUsageSnapshot(id: .claude,
+            session: UsageWindow(usedPercent: 100, resetsAt: oldDate.addingTimeInterval(3600)),
+            weekly: UsageWindow(usedPercent: 82, resetsAt: oldDate.addingTimeInterval(86400)),
+            observedAt: oldDate, source: .live, message: nil)
+        try fixture.cache.save([old])
+        _ = try fixture.historyCache.recording([old], at: oldDate)
+        let fresh = ProviderUsageSnapshot(id: .claude,
+            session: UsageWindow(usedPercent: 0, resetsAt: nil),
+            weekly: UsageWindow(usedPercent: 0, resetsAt: Date.now.addingTimeInterval(604800)),
+            observedAt: .now, source: .live, message: nil)
+        let claude = StubAdapter(provider: .claude, result: .success(fresh))
+        let store = IOSUsageStore(claude: claude,
+            codex: StubAdapter(provider: .codex, result: .failure(DirectUsageError.notAuthenticated)),
+            cache: fixture.cache, historyCache: fixture.historyCache, statusCache: fixture.statusCache)
+        XCTAssertEqual(store.snapshots.first?.source, .cached)
+        await store.refresh()
+        XCTAssertEqual(store.states[.claude], .live)
+        XCTAssertEqual(store.snapshots.first?.weekly.usedPercent, 0)
+        XCTAssertEqual(store.snapshots.first?.source, .live)
+        XCTAssertEqual(fixture.cache.load()[.claude]?.weekly.usedPercent, 0)
+        XCTAssertEqual(store.history.days.last?.claudeWeeklyPercent, 0)
+        XCTAssertTrue(store.history.days.contains { $0.claudeWeeklyPercent == 82 })
+        let calls = await claude.fetchCount()
+        XCTAssertEqual(calls, 1)
+    }
+
+    func testManualRetryAfterTransportFailureRecoversWithoutRelaunch() async throws {
+        let fixture = try Fixture()
+        try fixture.cache.save([Self.snapshot(provider: .claude, percent: 31, source: .live)])
+        let claude = StubAdapter(provider: .claude, result: .failure(DirectUsageError.transport))
+        let store = IOSUsageStore(claude: claude,
+            codex: StubAdapter(provider: .codex, result: .failure(DirectUsageError.notAuthenticated)),
+            cache: fixture.cache, historyCache: fixture.historyCache, statusCache: fixture.statusCache)
+        await store.refresh(force: true)
+        XCTAssertEqual(store.states[.claude], .stale)
+        await claude.setResult(.success(Self.snapshot(provider: .claude, percent: 39, source: .live)))
+        await store.refresh(force: true)
+        XCTAssertEqual(store.states[.claude], .live)
+        XCTAssertEqual(store.snapshots.first?.session.usedPercent, 39)
+        XCTAssertEqual(store.snapshots.first?.source, .live)
+        XCTAssertFalse(store.isRefreshing)
+    }
+
     func testDashboardDoesNotRenderTokenPlaceholderInEitherLanguage() throws {
         let now = Date.now
         let snapshots = UsageProviderID.allCases.map { provider in
@@ -389,7 +478,7 @@ final class IOSUsageStoreTests: XCTestCase {
 
 private actor StubAdapter: DirectUsageAdapter {
     nonisolated let providerID: UsageProviderID
-    private let result: Result<ProviderUsageSnapshot, Error>
+    private var result: Result<ProviderUsageSnapshot, Error>
     private var calls = 0
 
     init(provider: UsageProviderID, result: Result<ProviderUsageSnapshot, Error>) {
@@ -402,6 +491,7 @@ private actor StubAdapter: DirectUsageAdapter {
         return try result.get()
     }
     func fetchCount() -> Int { calls }
+    func setResult(_ result: Result<ProviderUsageSnapshot, Error>) { self.result = result }
 }
 
 private final class Fixture {

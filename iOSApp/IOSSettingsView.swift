@@ -248,10 +248,6 @@ struct IOSSettingsView: View {
         VStack(spacing: 5) {
             Text("ResetPls \(versionText)")
                 .monospacedDigit()
-            Text(language.text(
-                "Estimated API equivalent · current reset period · USD",
-                "Equivalente API estimado · periodo de reinicio actual · USD"
-            ))
         }
         .font(.system(size: 9.5, weight: .medium))
         .foregroundStyle(IOSSettingsPalette.faint)
