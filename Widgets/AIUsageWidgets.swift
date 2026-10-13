@@ -635,7 +635,7 @@ private struct UsageWidgetView: View {
                             .frame(width: 40, alignment: .leading)
                         accessoryMeter(snapshot)
                         Text(actionLabel(for: snapshot.id) ?? (isStale(snapshot)
-                            ? snapshot.observedAt.formatted(date: .omitted, time: .shortened)
+                            ? UsageObservationFormatter.compact(observedAt: snapshot.observedAt, now: entry.date, language: language)
                             : shortReset(snapshot)))
                             .font(.system(size: 10, weight: .semibold, design: .monospaced))
                             .frame(width: 62, alignment: .trailing)
@@ -685,7 +685,7 @@ private struct UsageWidgetView: View {
             result = result + Text("\(ProviderGlyph.inlineImage(provider: snapshot.id)) \(value)")
             if displayedSnapshots.count == 1, actionLabel(for: snapshot.id) == nil {
                 let time = isStale(snapshot)
-                    ? snapshot.observedAt.formatted(date: .omitted, time: .shortened)
+                    ? UsageObservationFormatter.compact(observedAt: snapshot.observedAt, now: entry.date, language: language)
                     : shortReset(snapshot)
                 result = result + Text("  \(Image(systemName: "clock")) \(time)")
             }
@@ -698,7 +698,7 @@ private struct UsageWidgetView: View {
         HStack(spacing: 4) {
             Image(systemName: isStale(snapshot) ? "clock.fill" : "circle.fill")
                 .font(.system(size: isStale(snapshot) ? 7 : 5, weight: .bold))
-            Text(snapshot.observedAt.formatted(date: .omitted, time: .shortened))
+            Text(UsageObservationFormatter.compact(observedAt: snapshot.observedAt, now: entry.date, language: language))
                 .font(.system(size: 7.5, weight: .bold))
                 .tracking(0.45)
         }

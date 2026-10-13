@@ -16,19 +16,19 @@ enum ProviderDataAccessPicker {
         let language = AppLanguage.current
         let panel = NSOpenPanel()
         panel.title = duringInitialConnection
-            ? language.text("Optional local history", "Histórico local opcional")
+            ? language.text("Optional token history on this Mac", "Historial opcional de tokens de este Mac")
             : language.text(
-                "Add \(providerName) token history",
-                "Añadir histórico de tokens de \(providerName)"
+                "Choose the \(providerName) token-history folder",
+                "Elegir carpeta del historial de tokens de \(providerName)"
             )
         panel.message = duringInitialConnection
             ? language.text(
-                "\(providerName) is connected. Optional: select \(folderName) to add \(localToolName) token history and estimated cost. ResetPls scans local session files, which may contain conversation text, but does not store or send that text. Cancel to skip; live limits still work.",
-                "\(providerName) está conectado. Opcional: selecciona \(folderName) para añadir el histórico de tokens y el coste estimado de \(localToolName). ResetPls examina archivos locales de sesiones, que pueden contener conversaciones, pero no guarda ni envía ese texto. Pulsa Cancelar para omitirlo; los límites seguirán funcionando."
+                "\(providerName) is connected. Optional: select \(folderName) to read the history of tokens consumed by \(localToolName) on this Mac and estimate their cost at API rates. ResetPls scans session files, which may contain conversation text, but does not store or send that text. Cancel to skip; quota percentages still work.",
+                "\(providerName) está conectado. Opcional: selecciona \(folderName) para leer el historial de tokens consumidos por \(localToolName) en este Mac y estimar su coste a tarifas API. ResetPls examina archivos de sesiones, que pueden contener conversaciones, pero no guarda ni envía ese texto. Pulsa Cancelar para omitirlo; los porcentajes de cuota seguirán funcionando."
             )
             : language.text(
-                "Select \(folderName) to add local token history and estimated cost. ResetPls scans session files, which may contain conversation text, but does not store or send that text.",
-                "Selecciona \(folderName) para añadir el histórico local de tokens y el coste estimado. ResetPls examina archivos de sesiones, que pueden contener conversaciones, pero no guarda ni envía ese texto."
+                "Select \(folderName) to read the history of tokens consumed by \(localToolName) on this Mac and estimate their cost at API rates. ResetPls scans session files, which may contain conversation text, but does not store or send that text. Quota percentages work without this access.",
+                "Selecciona \(folderName) para leer el historial de tokens consumidos por \(localToolName) en este Mac y estimar su coste a tarifas API. ResetPls examina archivos de sesiones, que pueden contener conversaciones, pero no guarda ni envía ese texto. Los porcentajes de cuota funcionan sin este acceso."
             )
         panel.prompt = language.text("Use \(folderName)", "Usar \(folderName)")
         panel.canChooseFiles = false

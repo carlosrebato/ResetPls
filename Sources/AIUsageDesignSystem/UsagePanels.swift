@@ -51,7 +51,7 @@ public struct UsageCompactMetrics: View {
                 Spacer(minLength: 4)
                 if snapshot.source == .cached || snapshot.isStale(at: now) {
                     Label {
-                        Text(snapshot.observedAt.formatted(date: .omitted, time: .shortened))
+                        Text(UsageObservationFormatter.string(observedAt: snapshot.observedAt, now: now, language: language))
                     } icon: {
                         Image(systemName: "clock.fill")
                     }
@@ -59,8 +59,8 @@ public struct UsageCompactMetrics: View {
                     .monospacedDigit()
                     .foregroundStyle(UsageTheme.cached)
                     .accessibilityLabel(language.text(
-                        "Last saved value from \(snapshot.observedAt.formatted(date: .omitted, time: .shortened))",
-                        "Último dato guardado de las \(snapshot.observedAt.formatted(date: .omitted, time: .shortened))"
+                        "Last saved value from \(UsageObservationFormatter.string(observedAt: snapshot.observedAt, now: now, language: language))",
+                        "Último dato guardado: \(UsageObservationFormatter.string(observedAt: snapshot.observedAt, now: now, language: language))"
                     ))
                     .fixedSize(horizontal: true, vertical: false)
                 }
@@ -118,6 +118,7 @@ public struct UsageCompactMetrics: View {
 }
 
 public struct UsageDetailedMetrics: View {
+    public let localTokenHistoryStates: [UsageProviderID: LocalTokenHistoryState]
     public let snapshots: [ProviderUsageSnapshot]
     public let now: Date
     public let history: UsageHistory
@@ -129,13 +130,15 @@ public struct UsageDetailedMetrics: View {
         now: Date,
         history: UsageHistory = UsageHistory(),
         language: AppLanguage = .english,
-        verticalExpansion: CGFloat = 0
+        verticalExpansion: CGFloat = 0,
+        localTokenHistoryStates: [UsageProviderID: LocalTokenHistoryState] = [:]
     ) {
         self.snapshots = snapshots
         self.now = now
         self.history = history
         self.language = language
         self.verticalExpansion = verticalExpansion
+        self.localTokenHistoryStates = localTokenHistoryStates
     }
 
     public var body: some View {
@@ -247,14 +250,15 @@ public struct UsageDetailedMetrics: View {
                     value: snapshot.weeklyTotals.map { compactTokens($0.totalTokens) } ?? "—",
                     help: snapshot.weeklyTotals.map {
                         tokenBreakdown($0, language: language)
-                    } ?? missingLocalHistoryHelp(language: language)
+                    } ?? localTokenHistoryStates[snapshot.id]?.help(language: language)
+                        ?? missingLocalHistoryHelp(language: language)
                 )
                 .zIndex(1)
                 #endif
                 Spacer()
                 if snapshot.source == .cached {
                     Label {
-                        Text(snapshot.observedAt.formatted(date: .omitted, time: .shortened))
+                        Text(UsageObservationFormatter.string(observedAt: snapshot.observedAt, now: now, language: language))
                     } icon: {
                         Image(systemName: "clock.fill")
                     }
@@ -262,8 +266,8 @@ public struct UsageDetailedMetrics: View {
                         .tracking(1.1)
                         .foregroundStyle(UsageTheme.cached)
                         .accessibilityLabel(language.text(
-                            "Last saved value from \(snapshot.observedAt.formatted(date: .omitted, time: .shortened))",
-                            "Último dato guardado de las \(snapshot.observedAt.formatted(date: .omitted, time: .shortened))"
+                            "Last saved value from \(UsageObservationFormatter.string(observedAt: snapshot.observedAt, now: now, language: language))",
+                            "Último dato guardado: \(UsageObservationFormatter.string(observedAt: snapshot.observedAt, now: now, language: language))"
                         ))
                         .fixedSize(horizontal: true, vertical: false)
                 } else if snapshot.source == .unavailable {
@@ -1290,8 +1294,8 @@ func equivalentCostHelp(
 
 private func missingLocalHistoryHelp(language: AppLanguage) -> String {
     language.text(
-        "Token history is unavailable. Add read-only access in Settings to restore token totals and estimated cost.",
-        "El histórico de tokens no está disponible. Añade acceso de solo lectura en Ajustes para recuperar los tokens y el coste estimado."
+        "Local token history is not available yet. Check its status in Settings; quota percentages work without it.",
+        "El historial de tokens de este Mac aún no está disponible. Consulta su estado en Ajustes; los porcentajes de cuota funcionan sin él."
     )
 }
 

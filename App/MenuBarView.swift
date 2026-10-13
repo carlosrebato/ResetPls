@@ -50,7 +50,10 @@ struct MenuBarView: View {
                     snapshots: visibleSnapshots,
                     now: now,
                     history: store.history,
-                    language: language
+                    language: language,
+                    localTokenHistoryStates: Dictionary(uniqueKeysWithValues: visibleSnapshots.map {
+                        ($0.id, store.localTokenHistoryState(for: $0.id))
+                    })
                 )
                     .environment(\.locale, language.locale)
                     .padding(.horizontal, 20)
