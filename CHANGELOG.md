@@ -2,6 +2,19 @@
 
 All notable changes to ResetPls for Mac are documented here.
 
+## 0.1.8 — 2026-10-13
+
+- Unify quota-history charts across Mac and iPhone, with an optional local-token
+  chart on Mac and day-value inspection without duplicate current-day labels.
+- Improve session and weekly pace transitions, compact panels and refresh layout.
+- Fix widget layouts at 100% usage and improve background refresh on iPhone.
+- Declare iPhone-only support; remove unavailable local-token metrics on iPhone.
+- Clarify connection, update and optional token-history states in English and
+  Spanish. Keep folder actions in Manage and distinguish missing access, no
+  activity and read errors.
+- Unify privacy notices and show a date for saved readings older than 24 hours.
+
+
 ## 0.1.3-beta.1 — 2026-09-22
 
 - Centralize Claude and Codex connection flows so every screen presents the

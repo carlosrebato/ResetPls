@@ -94,6 +94,12 @@ struct OnboardingView: View {
                         .padding(.horizontal, 16)
                 }
 
+                Text(LocalTokenHistoryState.explanation(language: language))
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(SettingsPalette.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+
                 HStack(spacing: 8) {
                     Image(systemName: "lock")
                         .font(.system(size: 11, weight: .semibold))
@@ -218,12 +224,6 @@ struct OnboardingView: View {
                         .tracking(-0.4)
                         .foregroundStyle(SettingsPalette.hero)
 
-                    Text(headerSubtitle)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(SettingsPalette.secondary)
-                        .multilineTextAlignment(.center)
-                        .lineSpacing(5)
-                        .frame(maxWidth: 400)
                 }
                 .padding(.horizontal, 20)
 
@@ -252,19 +252,13 @@ struct OnboardingView: View {
                         .padding(.horizontal, 16)
                 }
 
-                HStack(spacing: 8) {
-                    Image(systemName: "lock")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(SettingsPalette.faint)
+                Text(LocalTokenHistoryState.managementExplanation(language: language))
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(SettingsPalette.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
 
-                    Text(language.text(
-                        "Granted access is always read-only.",
-                        "El acceso concedido es siempre de solo lectura."
-                    ))
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(SettingsPalette.secondary)
-                }
-                .accessibilityElement(children: .combine)
+                UsagePrivacyCallout(language: language)
 
                 HStack {
                     Spacer()
@@ -363,7 +357,9 @@ struct OnboardingView: View {
                 if connected && !isOnboarding {
                     Text(localHistoryStatus(for: provider))
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(SettingsPalette.secondary)
+                        .foregroundStyle(store.localTokenHistoryState(for: provider).needsAttention
+                            ? UsageTheme.amber : store.localTokenHistoryState(for: provider) == .enabled
+                            ? SettingsPalette.accent.opacity(0.75) : SettingsPalette.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.leading, 15)
                 }
@@ -389,9 +385,16 @@ struct OnboardingView: View {
                     if connected, let actionTitle = state.actionTitle {
                         Menu {
                             Button(actionTitle) { performAction(for: provider) }
-                            Button(language.text("Review local history access…", "Revisar acceso al histórico local…")) {
-                                Task { await connectTokenHistory(provider) }
+                            Button(store.localTokenHistoryState(for: provider).actionTitle(language: language)) {
+                                Task {
+                                    if store.localTokenHistoryState(for: provider).requestsReading {
+                                        await store.refreshLocalHistory(for: provider)
+                                    } else {
+                                        await connectTokenHistory(provider)
+                                    }
+                                }
                             }
+                            .disabled(store.localTokenHistoryState(for: provider) == .checking)
                         } label: {
                             Text(language.text("Options…", "Opciones…"))
                                 .font(.system(size: 12, weight: .semibold))
@@ -508,8 +511,8 @@ struct OnboardingView: View {
                 "Elige Claude, Codex o ambos. Conecta tu cuenta para ver los límites de uso; el histórico local de tokens es un segundo paso opcional."
             )
             : language.text(
-                "Review or update the local connections ResetPls uses to read your usage counters.",
-                "Revisa o actualiza las conexiones locales que ResetPls usa para leer tus contadores de uso."
+                "Manage your account connections and the optional token history on this Mac.",
+                "Gestiona tus cuentas conectadas y el historial opcional de tokens consumidos en este Mac."
             )
     }
 
@@ -605,8 +608,12 @@ struct OnboardingView: View {
 
     private func cardState(for provider: UsageProviderID) -> CardState {
         if busyProvider == provider {
+            let isUpdating = store.isRefreshing
+                || store.connectionStatuses.first { $0.id == provider }?.phase == .retrying
             return CardState(
-                title: language.text("Checking…", "Comprobando…"),
+                title: isUpdating
+                    ? language.text("Updating…", "Actualizando…")
+                    : language.text("Connecting…", "Conectando…"),
                 subtitle: language.text(
                     "Verifying the authorized connection and usage data.",
                     "Verificando la conexión autorizada y los datos de uso."
@@ -628,18 +635,7 @@ struct OnboardingView: View {
             let isCached = snapshot?.source == .cached
                 || status.dataState == .cached
                 || status.dataState == .stale
-            let signal = snapshot?.signal(at: Date()) ?? .normal
-            let indicator: ProviderIndicator = if isCached {
-                .cached
-            } else {
-                switch signal {
-                case .normal: .connected
-                case .warning: .attention
-                case .critical: .error
-                case .cached: .cached
-                case .unavailable: .information
-                }
-            }
+            let indicator: ProviderIndicator = isCached ? .cached : .connected
             let usesLocalSession = isLocalFallback(provider, message: message)
             let subtitle = message ?? language.text(
                 "Local session detected",
@@ -671,7 +667,7 @@ struct OnboardingView: View {
             )
         case .retrying:
             return CardState(
-                title: language.text("Could not connect", "No se pudo conectar"),
+                title: language.text("Update failed", "No se pudo actualizar"),
                 subtitle: status.message,
                 indicator: .error,
                 actionTitle: language.text("Retry", "Reintentar"),
@@ -706,7 +702,7 @@ struct OnboardingView: View {
         case .signIn:
             return CardState(
                 title: dataState == .reauthRequired
-                    ? language.text("Session expired", "Sesión caducada")
+                    ? language.text("Reconnect your account", "Reconecta tu cuenta")
                     : language.text("Connect ResetPls", "Conecta ResetPls"),
                 subtitle: message,
                 indicator: dataState == .reauthRequired ? .error : .none,
@@ -726,7 +722,7 @@ struct OnboardingView: View {
             )
         case .retry:
             return CardState(
-                title: language.text("Could not connect", "No se pudo conectar"),
+                title: language.text("Update failed", "No se pudo actualizar"),
                 subtitle: message,
                 indicator: .error,
                 actionTitle: language.text("Retry", "Reintentar"),
@@ -834,13 +830,7 @@ struct OnboardingView: View {
     }
 
     private func localHistoryStatus(for provider: UsageProviderID) -> String {
-        guard ProviderDataAccess.shared.hasUsableAccess(for: metricsDirectory(for: provider)) else {
-            return language.text("Local history: access required", "Histórico local: requiere acceso")
-        }
-        let hasTokens = store.snapshots.first { $0.id == provider }?.weeklyTotals != nil
-        return hasTokens
-            ? language.text("Local history: available", "Histórico local: disponible")
-            : language.text("Local history: no token data", "Histórico local: sin datos de tokens")
+        store.localTokenHistoryState(for: provider).title(language: language)
     }
 
     private func dataDirectory(for provider: UsageProviderID) -> ProviderDataDirectory {

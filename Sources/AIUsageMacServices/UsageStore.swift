@@ -8,6 +8,16 @@ public final class UsageStore: ObservableObject {
     @Published public private(set) var providerStates: [ProviderRuntimeState]
     @Published public private(set) var history: UsageHistory
     @Published public private(set) var isRefreshing = false
+    @Published public private(set) var localTokenReadStatuses: [UsageProviderID: LocalTokenReadStatus] = [:]
+
+    public func localTokenHistoryState(for provider: UsageProviderID) -> LocalTokenHistoryState {
+        let directory: ProviderDataDirectory = provider == .claude ? .claudeCode : .codex
+        return .resolve(
+            hasStoredAccess: ProviderDataAccess.shared.hasStoredAccess(for: directory),
+            hasUsableAccess: ProviderDataAccess.shared.hasUsableAccess(for: directory),
+            hasTotals: snapshots.first { $0.id == provider }?.weeklyTotals != nil,
+            readStatus: localTokenReadStatuses[provider] ?? .unknown)
+    }
     private let connectors: [any UsageConnector]
     private let cache: UsageSnapshotCache
     private let statusCache: ProviderStatusCache
@@ -582,11 +592,13 @@ public final class UsageStore: ObservableObject {
         let periodStart = snapshot.weekly.resetsAt?
             .addingTimeInterval(-7 * 24 * 60 * 60)
             ?? periodEnd.addingTimeInterval(-7 * 24 * 60 * 60)
+        localTokenReadStatuses[snapshot.id] = .reading
         let totals = await metricsReader.weeklyTotals(
             for: snapshot.id,
             periodStart: periodStart,
             periodEnd: periodEnd
         )
+        localTokenReadStatuses[snapshot.id] = await metricsReader.readStatus(for: snapshot.id)
         // A failed/empty read may retain a value for the same week, but must
         // never resurrect a total from outside the newly requested period.
         let retainedTotals = snapshot.weeklyTotals.flatMap {
@@ -703,8 +715,8 @@ public final class UsageStore: ObservableObject {
             phase = .actionRequired(.signIn)
             displayMessage = hasLastKnownValue
                 ? AppLanguage.current.text(
-                    "Your session expired. Reconnect to refresh the last saved value.",
-                    "Tu sesión ha caducado. Reconecta para actualizar el último dato guardado."
+                    "Reconnect your account to refresh the last saved value.",
+                    "Reconecta tu cuenta para actualizar el último dato guardado."
                 )
                 : AppLanguage.current.text(
                     "Connect ResetPls to read your usage.",
@@ -713,8 +725,8 @@ public final class UsageStore: ObservableObject {
         case .reauthenticationRequired:
             phase = .actionRequired(.signIn)
             displayMessage = AppLanguage.current.text(
-                "Your session expired. Reconnect to continue updating.",
-                "Tu sesión ha caducado. Reconecta para seguir actualizando."
+                "Reconnect your account to continue updating.",
+                "Reconecta tu cuenta para seguir actualizando."
             )
         case .executableNotFound:
             phase = .actionRequired(.install)

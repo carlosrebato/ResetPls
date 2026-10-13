@@ -119,7 +119,7 @@ struct SettingsView: View {
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         }
         .ignoresSafeArea(.container, edges: .top)
-        .background(SettingsWindowConfigurator(title: "ResetPls · Settings"))
+        .background(SettingsWindowConfigurator(title: language.text("ResetPls · Settings", "ResetPls · Ajustes")))
         .fileExporter(
             isPresented: $isExportingDiagnostics,
             document: diagnosticExportDocument,
@@ -141,7 +141,7 @@ struct SettingsView: View {
 
     private var titleBar: some View {
         ZStack {
-            Text("RESETPLS · SETTINGS")
+            Text(language.text("RESETPLS · SETTINGS", "RESETPLS · AJUSTES"))
                 .font(.system(size: 12, weight: .bold))
                 .tracking(1.92)
                 .foregroundStyle(SettingsPalette.secondary)
@@ -176,8 +176,8 @@ struct SettingsView: View {
                     .foregroundStyle(SettingsPalette.hero)
 
                 Text(language.text(
-                    "Preferences and local connections",
-                    "Preferencias y conexiones locales"
+                    "Preferences and connections",
+                    "Preferencias y conexiones"
                 ))
                     .font(.system(size: 12.5, weight: .medium))
                     .foregroundStyle(SettingsPalette.secondary)
@@ -202,11 +202,16 @@ struct SettingsView: View {
                 providerCard(.claude)
                 providerCard(.codex)
             }
+            Text(LocalTokenHistoryState.explanation(language: language))
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(SettingsPalette.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
     private func providerCard(_ provider: UsageProviderID) -> some View {
         let presentation = providerPresentation(provider)
+        let historyState = store.localTokenHistoryState(for: provider)
 
         return VStack(alignment: .leading, spacing: 11) {
             HStack {
@@ -275,20 +280,9 @@ struct SettingsView: View {
                             .tint(SettingsPalette.accent)
                             .padding(.top, 5)
                     } else {
-                        Button(language.text(
-                            "Review local history access…",
-                            "Revisar acceso al histórico local…"
-                        )) {
-                            Task { await addTokenHistory(for: provider) }
-                        }
-                        .buttonStyle(.plain)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(SettingsPalette.accent)
-                        .padding(.top, 5)
-
-                        Text(tokenHistoryExplanation(for: provider))
-                            .font(.system(size: 9.5, weight: .medium))
-                            .foregroundStyle(SettingsPalette.secondary)
+                        Text(historyState.title(language: language))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(historyState.needsAttention ? UsageTheme.amber : historyState == .enabled ? SettingsPalette.accent.opacity(0.75) : SettingsPalette.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -296,7 +290,7 @@ struct SettingsView: View {
                 if let tokenHistoryError = tokenHistoryErrors[provider] {
                     Text(tokenHistoryError)
                         .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(UsageTheme.red)
+                        .foregroundStyle(UsageTheme.amber)
                         .lineLimit(2)
                         .padding(.top, 2)
                 }
@@ -369,23 +363,6 @@ struct SettingsView: View {
         return language.text("Connect", "Conectar")
     }
 
-    private func needsTokenHistoryAccess(_ provider: UsageProviderID) -> Bool {
-        !ProviderDataAccess.shared.hasUsableAccess(for: metricsDirectory(for: provider))
-    }
-
-    private func tokenHistoryExplanation(for provider: UsageProviderID) -> String {
-        let tool = provider == .claude ? "Claude Code" : "Codex CLI"
-        let available = store.snapshots.first { $0.id == provider }?.weeklyTotals != nil
-        let status = !needsTokenHistoryAccess(provider)
-            ? (available ? language.text("Local history: available. ", "Histórico local: disponible. ")
-                         : language.text("Local history: no token data. ", "Histórico local: sin datos de tokens. "))
-            : language.text("Local history: access required. ", "Histórico local: requiere acceso. ")
-        return status + language.text(
-            "Optional · reads \(tool) files on this Mac for token history and estimated cost. Live limits work without it.",
-            "Opcional · lee los archivos de \(tool) de este Mac para el histórico de tokens y el coste estimado. Los límites funcionan sin ello."
-        )
-    }
-
     @MainActor
     private func addTokenHistory(for provider: UsageProviderID) async {
         tokenHistoryErrors[provider] = nil
@@ -448,23 +425,7 @@ struct SettingsView: View {
     }
 
     private var privacyCallout: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "lock")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(SettingsPalette.faint)
-                .frame(width: 12, height: 12)
-                .padding(.top, 2)
-
-            Text(language.text(
-                "Counters are processed locally with read-only access. ResetPls does not store or send the content of your conversations.",
-                "Los contadores se procesan localmente y con acceso de solo lectura. ResetPls no almacena ni envía el contenido de tus conversaciones."
-            ))
-                .font(.system(size: 11.5, weight: .medium))
-                .lineSpacing(5)
-                .foregroundStyle(SettingsPalette.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, 3)
+        UsagePrivacyCallout(language: language)
     }
 
     private var supportActions: some View {
@@ -511,11 +472,7 @@ struct SettingsView: View {
 
     private var footer: some View {
         HStack(spacing: 12) {
-            Text(language.text(
-                "Estimated API equivalent · current reset period · USD",
-                "Equivalente API estimado · periodo de reseteo actual · USD"
-            ))
-            + Text("   v\(appVersion)")
+            Text("ResetPls v\(appVersion)")
 
             Spacer(minLength: 10)
 
@@ -695,8 +652,7 @@ struct SettingsView: View {
                 badge: isCached
                     ? language.text("Cached", "En caché")
                     : language.text("Connected", "Conectado"),
-                color: snapshot.map { UsageTheme.signal($0.signal(at: Date())) }
-                    ?? (isCached ? UsageTheme.cached : UsageTheme.signal(.unavailable)),
+                color: isCached ? UsageTheme.cached : UsageTheme.green,
                 isConnected: true,
                 isBusy: false
             )
@@ -716,7 +672,7 @@ struct SettingsView: View {
             return ProviderPresentation(
                 detail: status?.message ?? language.text("Setup required", "Necesita configuración"),
                 badge: status?.dataState == .reauthRequired
-                    ? language.text("Session expired", "Sesión caducada")
+                    ? language.text("Reconnect your account", "Reconecta tu cuenta")
                     : language.text("Attention", "Atención"),
                 color: isUnconfigured ? nil : UsageTheme.amber,
                 isConnected: false,
@@ -725,10 +681,12 @@ struct SettingsView: View {
         case .retrying:
             return ProviderPresentation(
                 detail: status?.message ?? language.text("Could not connect", "No se pudo conectar"),
-                badge: language.text("Retrying", "Reintentando"),
-                color: UsageTheme.red,
+                badge: store.isRefreshing
+                    ? language.text("Updating…", "Actualizando…")
+                    : language.text("Update failed", "No se pudo actualizar"),
+                color: UsageTheme.amber,
                 isConnected: false,
-                isBusy: false
+                isBusy: store.isRefreshing
             )
         case .none:
             return ProviderPresentation(
@@ -748,7 +706,10 @@ struct SettingsView: View {
             let plan = String(detail.dropFirst(5))
             return "\(plan) · \(presentation.badge)"
         }
-        return detail
+        if presentation.isBusy || detail.isEmpty || detail == presentation.badge {
+            return presentation.badge
+        }
+        return "\(presentation.badge) · \(detail)"
     }
 
     private var launchAtLoginDetail: String {

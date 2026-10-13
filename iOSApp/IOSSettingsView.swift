@@ -159,33 +159,7 @@ struct IOSSettingsView: View {
     }
 
     private var privacyNote: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "lock.shield.fill")
-                .font(.system(size: 17, weight: .medium))
-                .symbolRenderingMode(.hierarchical)
-                .foregroundStyle(IOSSettingsPalette.accent)
-                .frame(width: 30)
-
-            VStack(alignment: .leading, spacing: 5) {
-                Text(language.text(
-                    "ResetPls only reads usage counters",
-                    "ResetPls solo consulta contadores de uso"
-                ))
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundStyle(IOSSettingsPalette.title)
-                Text(language.text(
-                    "They’re processed on this iPhone. Your conversations are never read, stored, or sent.",
-                    "Se procesan en este iPhone. Tus conversaciones nunca se leen, guardan ni envían."
-                ))
-                .font(.system(size: 11.5, weight: .medium))
-                .lineSpacing(3)
-                .foregroundStyle(IOSSettingsPalette.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .padding(15)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(IOSSettingsPalette.accent.opacity(0.055), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        UsagePrivacyCallout(language: language)
     }
 
     private var supportSection: some View {
@@ -248,10 +222,6 @@ struct IOSSettingsView: View {
         VStack(spacing: 5) {
             Text("ResetPls \(versionText)")
                 .monospacedDigit()
-            Text(language.text(
-                "Estimated API equivalent · current reset period · USD",
-                "Equivalente API estimado · periodo de reinicio actual · USD"
-            ))
         }
         .font(.system(size: 9.5, weight: .medium))
         .foregroundStyle(IOSSettingsPalette.faint)
@@ -315,12 +285,13 @@ struct IOSSettingsView: View {
     }
 
     private func stateText(_ state: ProviderDataState) -> String {
-        switch state {
+        if store.isRefreshing { return language.text("Updating…", "Actualizando…") }
+        return switch state {
         case .live: language.text("Connected", "Conectado")
         case .cached: language.text("Cached", "En caché")
-        case .stale: language.text("Needs update", "Necesita actualizar")
+        case .stale: language.text("Update failed", "No se pudo actualizar")
         case .setupRequired: language.text("Not connected", "Sin conectar")
-        case .reauthRequired: language.text("Session expired", "Sesión caducada")
+        case .reauthRequired: language.text("Reconnect your account", "Reconecta tu cuenta")
         case .temporarilyUnavailable: language.text("Temporarily unavailable", "No disponible temporalmente")
         }
     }

@@ -15,9 +15,11 @@ struct LocalUsageMetricsReaderTests {
         let end = date("2026-07-24T00:00:00Z")
         let unavailable = await fixtureReader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
         #expect(unavailable == nil)
+        #expect(await fixtureReader.readStatus(for: .claude) == .failed)
         try FileManager.default.removeItem(at: blockedParent)
         let recovered = await fixtureReader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
         #expect(recovered?.totalTokens == 1_350)
+        #expect(await fixtureReader.readStatus(for: .claude) == .ready)
     }
     @Test func reviewingHistoryAccessBypassesTheFifteenMinuteScanCache() async throws {
         let home = temporaryHome()

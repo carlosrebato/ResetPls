@@ -828,7 +828,7 @@ struct UsageStoreTests {
         let codex = store.connectionStatuses.first { $0.id == .codex }
         #expect(codex?.phase == .actionRequired(.signIn))
         #expect(codex?.dataState == .reauthRequired)
-        #expect(codex?.message == "Your session expired. Reconnect to refresh the last saved value.")
+        #expect(codex?.message == "Reconnect your account to refresh the last saved value.")
         #expect(store.snapshots.first { $0.id == .codex }?.source == .cached)
         #expect(store.snapshots.first { $0.id == .codex }?.weekly.usedPercent == 54)
         #expect(cache.load()[.codex]?.weekly.usedPercent == 54)

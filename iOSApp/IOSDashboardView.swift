@@ -318,7 +318,7 @@ struct IOSDashboardView: View {
         let label = freshness.kind == .cached
             ? language.text("Last update", "Último dato")
             : language.text("Updated", "Actualizado")
-        return "\(label) \(freshness.date.formatted(date: .omitted, time: .shortened))"
+        return "\(label) \(UsageObservationFormatter.string(observedAt: freshness.date, now: now, language: language))"
     }
 
     private func verticalExpansion(for availableHeight: CGFloat) -> CGFloat {

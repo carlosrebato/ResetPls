@@ -3,6 +3,7 @@ import Foundation
 import os
 
 public protocol LocalUsageMetricsReading: Sendable {
+    func readStatus(for provider: UsageProviderID) async -> LocalTokenReadStatus
     func invalidateLocalHistory(for provider: UsageProviderID) async
     func weeklyTotals(
         for provider: UsageProviderID,
@@ -24,6 +25,7 @@ public protocol LocalUsageMetricsReading: Sendable {
 }
 
 public extension LocalUsageMetricsReading {
+    func readStatus(for _: UsageProviderID) async -> LocalTokenReadStatus { .unknown }
     func invalidateLocalHistory(for _: UsageProviderID) async {}
     func activityDates(
         for _: UsageProviderID,
@@ -43,6 +45,10 @@ public extension LocalUsageMetricsReading {
 }
 
 public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
+    private var readStatuses: [UsageProviderID: LocalTokenReadStatus] = [:]
+    public func readStatus(for provider: UsageProviderID) async -> LocalTokenReadStatus {
+        readStatuses[provider] ?? .unknown
+    }
     private struct WeeklyCache {
         let generation: Int
         let coverageStart: Date
@@ -119,7 +125,10 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
                 periodStart: periodStart,
                 periodEnd: .distantFuture,
                 deduplicating: false
-            ) else { return nil }
+            ) else {
+                readStatuses[provider] = .failed
+                return nil
+            }
             databaseQueryCounts[provider, default: 0] += 1
             cached = WeeklyCache(
                 generation: generation,
@@ -255,6 +264,7 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
     }
 
     public func invalidateLocalHistory(for provider: UsageProviderID) async {
+        readStatuses[provider] = .unknown
         lastRefresh.removeValue(forKey: provider)
         weeklyCache.removeValue(forKey: provider)
         dailyCache.removeValue(forKey: provider)
@@ -270,7 +280,10 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
                 logger.error("Local token index could not be opened (code \((error as NSError).code))")
             }
         }
-        guard let index else { return }
+        guard let index else {
+            readStatuses[provider] = .failed
+            return
+        }
         if let lastRefresh = lastRefresh[provider],
            Date.now.timeIntervalSince(lastRefresh) < refreshInterval {
             return
@@ -291,11 +304,14 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
             diagnostics = nil
         }
         if let diagnostics {
+            readStatuses[provider] = .ready
             latestDiagnostics[provider] = diagnostics
             lastRefresh[provider] = .now
             if diagnostics.didChangeIndex || indexGeneration[provider] == nil {
                 indexGeneration[provider, default: 0] += 1
             }
+        } else {
+            readStatuses[provider] = .failed
         }
     }
 }

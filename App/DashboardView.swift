@@ -29,7 +29,10 @@ struct DashboardView: View {
                             snapshots: store.snapshots,
                             now: now,
                             history: store.history,
-                            language: language
+                            language: language,
+                            localTokenHistoryStates: Dictionary(uniqueKeysWithValues: store.snapshots.map {
+                                ($0.id, store.localTokenHistoryState(for: $0.id))
+                            })
                         )
                     }
                     .padding(20)
@@ -173,7 +176,7 @@ struct UsageHeaderFreshnessLine: View {
         let label = freshness.kind == .cached
             ? language.text("Last update", "Último dato")
             : language.text("Updated", "Actualizado")
-        let time = freshness.date.formatted(date: .omitted, time: .shortened)
+        let time = UsageObservationFormatter.string(observedAt: freshness.date, now: now, language: language)
         return "\(label) \(time)"
     }
 }
