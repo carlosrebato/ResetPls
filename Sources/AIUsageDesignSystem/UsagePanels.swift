@@ -597,11 +597,7 @@ private struct UsageTrendChart: View {
     private var providers: Set<UsageProviderID> { trend.providers }
 
     private var fillsQuotaPlot: Bool {
-        #if os(macOS)
         trend.metric == .percent
-        #else
-        false
-        #endif
     }
 
     var body: some View {
@@ -613,8 +609,8 @@ private struct UsageTrendChart: View {
             // generous gutter made the seven-day series look horizontally cropped.
             let labelGutter = endpointLabels.isEmpty ? 8 : labelWidth + 6
             let right = max(left, size.width - labelGutter)
-            // Mac quota uses the full height; the top guide represents 100%.
-            // Token scale labels and the iOS layout retain their existing lane.
+            // Quota uses the full height on both platforms; the top guide is 100%.
+            // Mac token scale labels retain their existing header lane.
             let top: CGFloat = fillsQuotaPlot ? 8 : 34
             let baseline = max(top + 36, size.height - 22)
             let plotHeight = baseline - top
