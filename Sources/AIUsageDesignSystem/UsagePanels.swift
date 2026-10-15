@@ -596,6 +596,14 @@ private struct UsageTrendChart: View {
     private var days: [UsageHistoryDay] { trend.days }
     private var providers: Set<UsageProviderID> { trend.providers }
 
+    private var fillsQuotaPlot: Bool {
+        #if os(macOS)
+        trend.metric == .percent
+        #else
+        false
+        #endif
+    }
+
     var body: some View {
         Canvas { context, size in
             let left: CGFloat = 3
@@ -605,9 +613,9 @@ private struct UsageTrendChart: View {
             // generous gutter made the seven-day series look horizontally cropped.
             let labelGutter = endpointLabels.isEmpty ? 8 : labelWidth + 6
             let right = max(left, size.width - labelGutter)
-            // Reserve a header lane for inspection values, clear of even the
-            // highest point's ring. Keep geometry stable when hovering/touching.
-            let top: CGFloat = 34
+            // Mac quota uses the full height; the top guide represents 100%.
+            // Token scale labels and the iOS layout retain their existing lane.
+            let top: CGFloat = fillsQuotaPlot ? 8 : 34
             let baseline = max(top + 36, size.height - 22)
             let plotHeight = baseline - top
             let step = (right - left) / CGFloat(max(days.count - 1, 1))
@@ -618,7 +626,7 @@ private struct UsageTrendChart: View {
                                            plotRight: right, dayCount: days.count)
             }
             let hasMeasurements = providers.contains { trend.hasSeries(for: $0) }
-            if hasMeasurements {
+            if hasMeasurements && !fillsQuotaPlot {
                 context.draw(
                     Text(trend.metric == .tokens ? compactTokens(Int(trend.scaleMaximum)) : "100%")
                         .font(.system(size: 8, weight: .medium))
@@ -626,7 +634,7 @@ private struct UsageTrendChart: View {
                     at: CGPoint(x: left, y: 4),
                     anchor: .topLeading
                 )
-            } else {
+            } else if !hasMeasurements {
                 context.draw(
                     Text(language.text("No measurements", "Sin mediciones"))
                         .font(.system(size: 10))
@@ -699,6 +707,7 @@ private struct UsageTrendChart: View {
             }
             if let inspectedIndex {
                 drawInspection(index: inspectedIndex, x: xPositions[inspectedIndex],
+                               xPositions: xPositions,
                                top: top, baseline: baseline, plotHeight: plotHeight,
                                size: size, context: &context)
             }
@@ -719,7 +728,7 @@ private struct UsageTrendChart: View {
         #endif
     }
 
-    private func drawInspection(index: Int, x: CGFloat, top: CGFloat, baseline: CGFloat,
+    private func drawInspection(index: Int, x: CGFloat, xPositions: [CGFloat], top: CGFloat, baseline: CGFloat,
                                 plotHeight: CGFloat, size: CGSize,
                                 context: inout GraphicsContext) {
         var guide = Path()
@@ -750,8 +759,37 @@ private struct UsageTrendChart: View {
         let resolved = context.resolve(label.font(.system(size: 9, weight: .semibold)))
         let measured = resolved.measure(in: CGSize(width: max(size.width - 20, 1), height: .infinity))
         let width = min(measured.width + 14, size.width - 4)
-        let rect = CGRect(x: min(max(x - width / 2, 2), size.width - width - 2),
-                          y: 0, width: width, height: measured.height + 10)
+        let labelX = min(max(x - width / 2, 2), size.width - width - 2)
+        let labelHeight = measured.height + 10
+        var occupied: [ClosedRange<CGFloat>] = []
+        if fillsQuotaPlot {
+            // Include slopes crossing the label's entire horizontal span, not
+            // just the inspected day's points. Preserve gaps in unknown data.
+            for provider in providers {
+                for segment in trend.segments(for: provider) {
+                    let points = segment.compactMap { dayIndex -> CGPoint? in
+                        guard let value = trend.normalizedValue(for: days[dayIndex], provider: provider)
+                        else { return nil }
+                        return CGPoint(x: xPositions[dayIndex], y: baseline - plotHeight * value)
+                    }
+                    for point in points where point.x >= labelX - 7 && point.x <= labelX + width + 7 {
+                        occupied.append((point.y - 8)...(point.y + 8))
+                    }
+                    for (a, b) in zip(points, points.dropFirst()) where b.x > a.x {
+                        let start = max(a.x, labelX - 5)
+                        let end = min(b.x, labelX + width + 5)
+                        guard start <= end else { continue }
+                        let y1 = a.y + (b.y - a.y) * (start - a.x) / (b.x - a.x)
+                        let y2 = a.y + (b.y - a.y) * (end - a.x) / (b.x - a.x)
+                        occupied.append((min(y1, y2) - 5)...(max(y1, y2) + 5))
+                    }
+                }
+            }
+        }
+        let labelY = fillsQuotaPlot
+            ? UsageTrendInspection.labelY(height: labelHeight, top: 0, bottom: baseline, occupied: occupied)
+            : 0
+        let rect = CGRect(x: labelX, y: labelY, width: width, height: labelHeight)
         context.fill(Path(roundedRect: rect, cornerRadius: 5), with: .color(UsageTheme.stage))
         context.stroke(Path(roundedRect: rect, cornerRadius: 5), with: .color(.white.opacity(0.12)), lineWidth: 1)
         context.draw(resolved, at: CGPoint(x: rect.midX, y: rect.midY), anchor: .center)
