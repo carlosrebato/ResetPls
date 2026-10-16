@@ -98,7 +98,6 @@
 
 /* Begin PBXFileReference section */
 		04BBC7E8EA18221FEE74D8C5 /* ConnectionSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionSetupView.swift; sourceTree = "<group>"; };
-		072AC760FE66906472BED5CA /* resetpls-settings-clarity-20261013 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "resetpls-settings-clarity-20261013"; path = .; sourceTree = SOURCE_ROOT; };
 		13BA399D17CE550A885B0370 /* AIUsageIOSWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = AIUsageIOSWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		1ABAE43F38C7971DA461886B /* IOSUsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSUsageStore.swift; sourceTree = "<group>"; };
 		1C8E73CBECC1B07771CF6BA4 /* AIUsageIOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = AIUsageIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -110,6 +109,7 @@
 		53233494284243616896D95E /* IOSWidgetPreviewGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSWidgetPreviewGallery.swift; sourceTree = "<group>"; };
 		682E2BB9E803FB0662BAA680 /* AIUsageIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsageIOSApp.swift; sourceTree = "<group>"; };
 		6E807D698482110899B3D06D /* ClaudeDesktopAccessPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeDesktopAccessPicker.swift; sourceTree = "<group>"; };
+		7830A68AFD3E7DCD57630C0B /* resetpls-testflight-20261015-57 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "resetpls-testflight-20261015-57"; path = .; sourceTree = SOURCE_ROOT; };
 		7A8C5B96141520571B022EA1 /* ClaudeBrowserLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeBrowserLogin.swift; sourceTree = "<group>"; };
 		80F3A97FAFB482A477083468 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		896ACE1407350F5EE0D5B228 /* AIUsageWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsageWidgets.swift; sourceTree = "<group>"; };
@@ -210,7 +210,7 @@
 		65C9F6C49F90B59D7DAD9264 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				072AC760FE66906472BED5CA /* resetpls-settings-clarity-20261013 */,
+				7830A68AFD3E7DCD57630C0B /* resetpls-testflight-20261015-57 */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -538,6 +538,7 @@
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 57;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Configurations/AIUsageIOS-Info.plist";
@@ -553,6 +554,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_IOS_BUNDLE_ID)";
 				PRODUCT_MODULE_NAME = AIUsageIOS;
 				PRODUCT_NAME = ResetPls;
@@ -568,6 +570,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOSWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 57;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				INFOPLIST_FILE = "Configurations/AIUsageIOSWidgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -575,6 +578,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_IOS_WIDGET_BUNDLE_ID)";
 				PRODUCT_NAME = "ResetPls Widgets";
 				SDKROOT = iphoneos;
@@ -609,6 +613,7 @@
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 57;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Configurations/AIUsageIOS-Info.plist";
@@ -624,6 +629,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_IOS_BUNDLE_ID)";
 				PRODUCT_MODULE_NAME = AIUsageIOS;
 				PRODUCT_NAME = ResetPls;
@@ -790,6 +796,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOSWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 57;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				INFOPLIST_FILE = "Configurations/AIUsageIOSWidgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -797,6 +804,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
+				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "$(AI_USAGE_IOS_WIDGET_BUNDLE_ID)";
 				PRODUCT_NAME = "ResetPls Widgets";
 				SDKROOT = iphoneos;

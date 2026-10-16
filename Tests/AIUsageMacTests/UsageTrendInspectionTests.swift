@@ -3,6 +3,24 @@ import Testing
 @testable import AIUsageDesignSystem
 
 struct UsageTrendInspectionTests {
+    @Test func labelMovesBelowHighPointsWithoutReservingAHeaderLane() {
+        let y = UsageTrendInspection.labelY(height: 20, top: 0, bottom: 78, occupied: [0...16])
+        #expect(y >= 16)
+        #expect(y + 20 <= 78)
+    }
+
+    @Test func labelUsesUpperSpaceForLowValuesAndFitsBetweenSeries() {
+        #expect(UsageTrendInspection.labelY(height: 20, top: 0, bottom: 78, occupied: [60...86]) == 0)
+        let y = UsageTrendInspection.labelY(height: 20, top: 0, bottom: 78, occupied: [0...16, 60...86])
+        #expect(y >= 16 && y + 20 <= 60)
+    }
+
+    @Test func crowdedAndEmptyPlotsKeepTheLabelInsideTheChart() {
+        #expect(UsageTrendInspection.labelY(height: 20, top: 0, bottom: 78, occupied: []) == 0)
+        let y = UsageTrendInspection.labelY(height: 20, top: 0, bottom: 78, occupied: [0...78])
+        #expect(y >= 0 && y + 20 <= 78)
+    }
+
     @Test func selectsNearestDayAndClampsEndpointGutter() {
         let size = CGSize(width: 340, height: 180)
         for index in 0..<7 {
