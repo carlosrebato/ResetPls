@@ -78,6 +78,11 @@ struct DashboardView: View {
         }
         .frame(width: 432)
         .frame(minHeight: 720)
+        .usageConnections(Dictionary(uniqueKeysWithValues: store.connectionStatuses.map {
+            ($0.id, $0.dataState)
+        })) { provider in
+            Task { await store.connect(provider) }
+        }
         .onReceive(timer) { now = $0 }
         .onChange(of: store.snapshots) { _, _ in now = .now }
         .onChange(of: scenePhase) { _, phase in

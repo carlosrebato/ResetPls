@@ -91,6 +91,11 @@ struct MenuBarView: View {
             sizeDidChange?(size)
         }
         .animation(nil, value: isExpanded)
+        .usageConnections(Dictionary(uniqueKeysWithValues: store.connectionStatuses.map {
+            ($0.id, $0.dataState)
+        })) { provider in
+            Task { await store.connect(provider) }
+        }
         .onReceive(timer) { now = $0 }
         .onChange(of: store.snapshots) { _, _ in now = .now }
         .onChange(of: automaticRefresh) { _, enabled in
