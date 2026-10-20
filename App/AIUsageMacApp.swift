@@ -966,9 +966,9 @@ private struct MenuBarUsageImageContent: View {
     private func severityDot(_ snapshot: AIUsageCore.ProviderUsageSnapshot) -> some View {
         if connectionStates[snapshot.id] == .reauthRequired {
             Text("!")
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: 15, weight: .heavy))
                 .foregroundStyle(layer == .template ? .clear : UsageTheme.cached)
-                .frame(width: 6, height: 12)
+                .frame(width: 8, height: 18)
         } else {
             Circle()
                 .fill(layer == .template ? .clear : UsageTheme.signal(snapshot.signal(at: now)))

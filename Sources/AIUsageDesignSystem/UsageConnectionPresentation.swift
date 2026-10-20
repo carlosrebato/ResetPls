@@ -36,8 +36,9 @@ struct UsageReconnectIndicator: View {
     let language: AppLanguage
 
     var body: some View {
-        Image(systemName: "exclamationmark.circle.fill")
-            .font(.system(size: 10, weight: .semibold))
+        Text("!")
+            .font(.system(size: 16, weight: .heavy))
+            .frame(width: 12, height: 18)
             .foregroundStyle(UsageTheme.cached)
             .accessibilityLabel(language.text("Reconnection required", "Necesita reconectar"))
     }
