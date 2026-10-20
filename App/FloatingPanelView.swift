@@ -61,11 +61,21 @@ struct FloatingPanelView: View {
         .gesture(WindowDragGesture())
         .allowsWindowActivationEvents()
         .background(FloatingWindowConfigurator(size: panelSize))
+        .usageConnections(Dictionary(uniqueKeysWithValues: store.connectionStatuses.map {
+            ($0.id, $0.dataState)
+        })) { provider in
+            Task { await store.connect(provider) }
+        }
         .onReceive(timer) { now = $0 }
     }
 
     private var panelSize: NSSize {
         let extraHeight = visibleSnapshots.reduce(CGFloat.zero) { total, snapshot in
+            if store.connectionStatuses.contains(where: {
+                $0.id == snapshot.id && $0.dataState == .reauthRequired
+            }) {
+                return total + paceLineHeight(language.text("Reconnection required", "Necesita reconectar"))
+            }
             guard let notice = snapshot.primaryPaceNotice(at: now) else { return total }
             return total + paceLineHeight(language.paceNoticeText(notice))
         }

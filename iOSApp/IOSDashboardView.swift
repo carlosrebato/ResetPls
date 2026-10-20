@@ -56,6 +56,11 @@ struct IOSDashboardView: View {
                 .refreshable { await store.refresh(force: true) }
             }
         }
+        .usageConnections(store.states) { provider in
+            guard !store.isDemoMode,
+                  !store.authenticatingProviders.contains(provider) else { return }
+            Task { await store.signIn(provider) }
+        }
         .preferredColorScheme(.dark)
         .onReceive(timer) { date in
             now = date
@@ -170,7 +175,12 @@ struct IOSDashboardView: View {
 
     private var providersNeedingAction: [UsageProviderID] {
         UsageProviderID.allCases.filter { provider in
-            switch store.states[provider] ?? .temporarilyUnavailable {
+            // Existing quota cards already provide a direct reconnection action.
+            if store.states[provider] == .reauthRequired,
+               store.snapshots.contains(where: { $0.id == provider && $0.highestPercent != nil }) {
+                return false
+            }
+            return switch store.states[provider] ?? .temporarilyUnavailable {
             case .live, .cached, .stale: false
             case .setupRequired, .reauthRequired, .temporarilyUnavailable: true
             }
@@ -255,8 +265,8 @@ struct IOSDashboardView: View {
             )
         case .reauthRequired:
             return language.text(
-                "Your session expired. Reconnect to resume updates.",
-                "Tu sesión ha caducado. Reconecta para recuperar las actualizaciones."
+                "Reconnect your account to resume updates.",
+                "Reconecta tu cuenta para volver a actualizar los datos."
             )
         case .temporarilyUnavailable:
             return language.text(
@@ -283,8 +293,8 @@ struct IOSDashboardView: View {
         let states = providersNeedingAction.compactMap { store.states[$0] }
         if states.contains(.reauthRequired), states.contains(.setupRequired) {
             return language.text(
-                "Reconnect the expired session or connect another service.",
-                "Reconecta la sesión caducada o conecta otro servicio."
+                "Reconnect your account or connect another service.",
+                "Reconecta tu cuenta o conecta otro servicio."
             )
         }
         if states.contains(.reauthRequired) {
@@ -490,8 +500,8 @@ struct IOSOnboardingView: View {
         }
         if store.states[provider] == .reauthRequired {
             return language.text(
-                "Your previous session expired. Reconnect to continue.",
-                "Tu sesión anterior ha caducado. Reconecta para continuar."
+                "Reconnect your account to continue.",
+                "Reconecta tu cuenta para continuar."
             )
         }
         return language.text(

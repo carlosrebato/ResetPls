@@ -722,7 +722,10 @@ private final class NativeStatusBarController: NSObject {
                 colorScheme: .light,
                 showResetTimes: showResetTimes,
                 now: .now,
-                layer: .template
+                layer: .template,
+                connectionStates: Dictionary(uniqueKeysWithValues: store.connectionStatuses.map {
+                    ($0.id, $0.dataState)
+                })
             )
         )
         let dotsRenderer = ImageRenderer(
@@ -731,7 +734,10 @@ private final class NativeStatusBarController: NSObject {
                 colorScheme: .light,
                 showResetTimes: showResetTimes,
                 now: .now,
-                layer: .dots
+                layer: .dots,
+                connectionStates: Dictionary(uniqueKeysWithValues: store.connectionStatuses.map {
+                    ($0.id, $0.dataState)
+                })
             )
         )
         let scale = NSScreen.main?.backingScaleFactor ?? 2
@@ -771,6 +777,14 @@ private final class NativeStatusBarController: NSObject {
         showResetTimes: Bool
     ) -> String {
         snapshots.map { snapshot in
+            if store.connectionStatuses.contains(where: {
+                $0.id == snapshot.id && $0.dataState == .reauthRequired
+            }) {
+                return language.text(
+                    "\(snapshot.id.displayName) needs to reconnect",
+                    "\(snapshot.id.displayName) necesita reconectar"
+                )
+            }
             let percent = snapshot.menuBarPercent.map { "\(Int($0.rounded()))%" } ?? "—"
             let freshness = snapshot.source == .cached || snapshot.isStale(at: .now)
                 ? ", \(language.text("saved data", "dato guardado"))"
@@ -893,6 +907,7 @@ private struct MenuBarUsageImageContent: View {
     let showResetTimes: Bool
     let now: Date
     var layer: MenuBarRenderLayer = .complete
+    var connectionStates: [UsageProviderID: ProviderDataState] = [:]
 
     var body: some View {
         HStack(spacing: 8) {
@@ -947,11 +962,18 @@ private struct MenuBarUsageImageContent: View {
         ).replacingOccurrences(of: " ", with: "")
     }
 
+    @ViewBuilder
     private func severityDot(_ snapshot: AIUsageCore.ProviderUsageSnapshot) -> some View {
-        let color = AIUsageDesignSystem.UsageTheme.signal(snapshot.signal(at: now))
-        return Circle()
-            .fill(layer == .template ? .clear : color)
-            .frame(width: 6, height: 6)
+        if connectionStates[snapshot.id] == .reauthRequired {
+            Text("!")
+                .font(.system(size: 15, weight: .heavy))
+                .foregroundStyle(layer == .template ? .clear : UsageTheme.cached)
+                .frame(width: 8, height: 18)
+        } else {
+            Circle()
+                .fill(layer == .template ? .clear : UsageTheme.signal(snapshot.signal(at: now)))
+                .frame(width: 6, height: 6)
+        }
     }
 
     private func iconSize(for provider: AIUsageCore.UsageProviderID) -> CGFloat {

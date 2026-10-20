@@ -6,6 +6,7 @@ import UIKit
 #endif
 
 public struct UsageCompactMetrics: View {
+    @Environment(\.usageConnectionStates) private var connectionStates
     public let snapshots: [ProviderUsageSnapshot]
     public let now: Date
     public let language: AppLanguage
@@ -49,15 +50,21 @@ public struct UsageCompactMetrics: View {
                     .foregroundStyle(UsageTheme.secondaryText)
                     .lineLimit(1)
                 Spacer(minLength: 4)
-                if snapshot.source == .cached || snapshot.isStale(at: now) {
+                if snapshot.source == .cached || snapshot.isStale(at: now)
+                    || connectionStates[snapshot.id] == .reauthRequired {
                     Label {
                         Text(UsageObservationFormatter.string(observedAt: snapshot.observedAt, now: now, language: language))
                     } icon: {
-                        Image(systemName: "clock.fill")
+                        if connectionStates[snapshot.id] == .reauthRequired {
+                            UsageReconnectIndicator(language: language)
+                        } else {
+                            Image(systemName: "clock.fill")
+                        }
                     }
                     .font(.system(size: 9, weight: .semibold))
                     .monospacedDigit()
-                    .foregroundStyle(UsageTheme.cached)
+                    .foregroundStyle(connectionStates[snapshot.id] == .reauthRequired
+                        ? UsageTheme.mutedText : UsageTheme.cached)
                     .accessibilityLabel(language.text(
                         "Last saved value from \(UsageObservationFormatter.string(observedAt: snapshot.observedAt, now: now, language: language))",
                         "Último dato guardado: \(UsageObservationFormatter.string(observedAt: snapshot.observedAt, now: now, language: language))"
@@ -118,6 +125,7 @@ public struct UsageCompactMetrics: View {
 }
 
 public struct UsageDetailedMetrics: View {
+    @Environment(\.usageConnectionStates) private var connectionStates
     public let localTokenHistoryStates: [UsageProviderID: LocalTokenHistoryState]
     public let snapshots: [ProviderUsageSnapshot]
     public let now: Date
@@ -180,11 +188,15 @@ public struct UsageDetailedMetrics: View {
                     .font(.system(size: 16.5, weight: .semibold))
                     .foregroundStyle(UsageTheme.primaryText)
                 Spacer()
-                UsageStatusDot(
-                    severity: signal == .critical ? .critical : .normal,
-                    color: UsageTheme.signal(signal),
-                    size: 8
-                )
+                if connectionStates[snapshot.id] == .reauthRequired {
+                    UsageReconnectIndicator(language: language)
+                } else {
+                    UsageStatusDot(
+                        severity: signal == .critical ? .critical : .normal,
+                        color: UsageTheme.signal(signal),
+                        size: 8
+                    )
+                }
             }
 
             HStack(alignment: .bottom, spacing: 16) {
@@ -264,13 +276,14 @@ public struct UsageDetailedMetrics: View {
                     }
                         .font(.system(size: 9, weight: .semibold))
                         .tracking(1.1)
-                        .foregroundStyle(UsageTheme.cached)
+                        .foregroundStyle(connectionStates[snapshot.id] == .reauthRequired
+                            ? UsageTheme.mutedText : UsageTheme.cached)
                         .accessibilityLabel(language.text(
                             "Last saved value from \(UsageObservationFormatter.string(observedAt: snapshot.observedAt, now: now, language: language))",
                             "Último dato guardado: \(UsageObservationFormatter.string(observedAt: snapshot.observedAt, now: now, language: language))"
                         ))
                         .fixedSize(horizontal: true, vertical: false)
-                } else if snapshot.source == .unavailable {
+                } else if snapshot.source == .unavailable && connectionStates[snapshot.id] != .reauthRequired {
                     Text(language.text("OFFLINE", "SIN CONEXIÓN"))
                         .font(.system(size: 9, weight: .semibold))
                         .tracking(1.1)
@@ -954,6 +967,7 @@ private struct UsageTrendChart: View {
 }
 
 public struct UsageFloatingMetrics: View {
+    @Environment(\.usageConnectionStates) private var connectionStates
     public let snapshots: [ProviderUsageSnapshot]
     public let now: Date
     public let language: AppLanguage
@@ -980,7 +994,9 @@ public struct UsageFloatingMetrics: View {
                             .font(.system(size: 12, weight: .semibold))
                             .foregroundStyle(UsageTheme.secondaryText)
                         Spacer()
-                        if snapshot.source == .cached {
+                        if connectionStates[snapshot.id] == .reauthRequired {
+                            UsageReconnectIndicator(language: language)
+                        } else if snapshot.source == .cached {
                             Image(systemName: "clock.fill")
                                 .font(.system(size: 8, weight: .bold))
                                 .foregroundStyle(UsageTheme.cached)
@@ -1020,6 +1036,8 @@ public struct UsageFloatingMetrics: View {
 }
 
 struct UsagePaceLine: View {
+    @Environment(\.usageConnectionStates) private var connectionStates
+    @Environment(\.usageReconnect) private var reconnect
     let snapshot: ProviderUsageSnapshot
     let now: Date
     let language: AppLanguage
@@ -1032,7 +1050,21 @@ struct UsagePaceLine: View {
             ? nil : snapshot.sessionPaceStatus(at: now)
         let weeklyRisk = primaryOnly && snapshot.primaryQuotaID != .weekly
             ? nil : snapshot.weeklyPaceNotice(at: now)
-        if sessionStatus != nil || weeklyRisk != nil {
+        if connectionStates[snapshot.id] == .reauthRequired {
+            Button {
+                reconnect?(snapshot.id)
+            } label: {
+                HStack(spacing: 4) {
+                    Text(language.text("Reconnection required", "Necesita reconectar"))
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 9, weight: .semibold))
+                }
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(UsageTheme.cached)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint(language.text("Reconnect your account", "Reconecta tu cuenta"))
+        } else if sessionStatus != nil || weeklyRisk != nil {
             VStack(alignment: .leading, spacing: 5) {
                 if let sessionStatus {
                     Text(language.sessionPaceText(sessionStatus))
