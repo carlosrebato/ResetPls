@@ -4,13 +4,26 @@ import Testing
 @testable import AIUsageMacServices
 
 struct LocalUsageMetricsReaderTests {
+    // Keep fixture events inside retention regardless of the actual test date.
+    private func makeReader(
+        homeDirectory: URL? = nil,
+        indexURL: URL? = nil,
+        refreshInterval: TimeInterval = 15 * 60
+    ) -> LocalUsageMetricsReader {
+        LocalUsageMetricsReader(
+            homeDirectory: homeDirectory,
+            indexURL: indexURL,
+            refreshInterval: refreshInterval,
+            now: { Date(timeIntervalSince1970: 1_784_851_200) }
+        )
+    }
     @Test func failedIndexInitializationCanRecoverOnTheNextRefresh() async throws {
         let home = temporaryHome()
         defer { try? FileManager.default.removeItem(at: home) }
         try writeLines([claudeLine(messageID: "first")], to: home.appendingPathComponent(".claude/projects/demo/session.jsonl"))
         let blockedParent = home.appendingPathComponent("blocked")
         try Data("not a directory".utf8).write(to: blockedParent)
-        let fixtureReader = LocalUsageMetricsReader(homeDirectory: home, indexURL: blockedParent.appendingPathComponent("index.sqlite3"))
+        let fixtureReader = makeReader(homeDirectory: home, indexURL: blockedParent.appendingPathComponent("index.sqlite3"))
         let start = date("2026-07-20T00:00:00Z")
         let end = date("2026-07-24T00:00:00Z")
         let unavailable = await fixtureReader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
@@ -26,7 +39,7 @@ struct LocalUsageMetricsReaderTests {
         defer { try? FileManager.default.removeItem(at: home) }
         let file = home.appendingPathComponent(".claude/projects/demo/session.jsonl")
         try writeLines([claudeLine(messageID: "first")], to: file)
-        let reader = LocalUsageMetricsReader(homeDirectory: home, refreshInterval: 900)
+        let reader = makeReader(homeDirectory: home, refreshInterval: 900)
         let start = date("2026-07-20T00:00:00Z")
         let end = date("2026-07-24T00:00:00Z")
         let initial = await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: end)
@@ -52,7 +65,7 @@ struct LocalUsageMetricsReaderTests {
             withIntermediateDirectories: true
         )
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let reader = LocalUsageMetricsReader(
+        let reader = makeReader(
             homeDirectory: home,
             indexURL: indexDirectory.appendingPathComponent("incremental.sqlite3"),
             refreshInterval: 0
@@ -90,7 +103,7 @@ struct LocalUsageMetricsReaderTests {
             + (await reader.diagnostics(for: .codex)?.scannedBytes ?? 0)
         #expect(incrementalBytes < max(1_000_000, initialBytes / 100))
 
-        let cleanReader = LocalUsageMetricsReader(
+        let cleanReader = makeReader(
             homeDirectory: home,
             indexURL: indexDirectory.appendingPathComponent("clean.sqlite3"),
             refreshInterval: 0
@@ -125,7 +138,7 @@ struct LocalUsageMetricsReaderTests {
             claudeLine(messageID: "message-1")
         ], to: file)
 
-        let totals = await LocalUsageMetricsReader(homeDirectory: home).weeklyTotals(
+        let totals = await makeReader(homeDirectory: home).weeklyTotals(
             for: .claude,
             periodStart: date("2026-07-20T00:00:00Z"),
             periodEnd: date("2026-07-24T00:00:00Z")
@@ -150,7 +163,7 @@ struct LocalUsageMetricsReaderTests {
             claudeLine(messageID: "streamed", input: 200)
         ], to: file)
 
-        let totals = await LocalUsageMetricsReader(homeDirectory: home).weeklyTotals(
+        let totals = await makeReader(homeDirectory: home).weeklyTotals(
             for: .claude,
             periodStart: date("2026-07-20T00:00:00Z"),
             periodEnd: date("2026-07-24T00:00:00Z")
@@ -168,7 +181,7 @@ struct LocalUsageMetricsReaderTests {
             #"{"message":{"model":"claude-sonnet-5","id":"real-message","type":"message","role":"assistant","content":[{"type":"text","text":"an id and timestamp inside content"}],"usage":{"input_tokens":100,"cache_creation_input_tokens":200,"cache_read_input_tokens":1000,"output_tokens":50,"cache_creation":{"ephemeral_5m_input_tokens":200,"ephemeral_1h_input_tokens":0}}},"uuid":"fallback","timestamp":"2026-07-23T10:00:00Z","type":"assistant"}"#
         ], to: file)
 
-        let totals = await LocalUsageMetricsReader(homeDirectory: home).weeklyTotals(
+        let totals = await makeReader(homeDirectory: home).weeklyTotals(
             for: .claude,
             periodStart: date("2026-07-20T00:00:00Z"),
             periodEnd: date("2026-07-24T00:00:00Z")
@@ -187,7 +200,7 @@ struct LocalUsageMetricsReaderTests {
             codexTokenLine(input: 250, cached: 100, output: 30, reasoning: 8, total: 280)
         ], to: file)
 
-        let totals = await LocalUsageMetricsReader(homeDirectory: home).weeklyTotals(
+        let totals = await makeReader(homeDirectory: home).weeklyTotals(
             for: .codex,
             periodStart: date("2026-07-20T00:00:00Z"),
             periodEnd: date("2026-07-24T00:00:00Z")
@@ -215,7 +228,7 @@ struct LocalUsageMetricsReaderTests {
                            timestamp: "2026-10-02T10:02:00Z")
         ], to: file)
 
-        let totals = await LocalUsageMetricsReader(homeDirectory: home).weeklyTotals(
+        let totals = await makeReader(homeDirectory: home).weeklyTotals(
             for: .codex,
             periodStart: date("2026-09-29T00:00:00Z"),
             periodEnd: date("2026-10-03T00:00:00Z")
@@ -235,7 +248,7 @@ struct LocalUsageMetricsReaderTests {
             """
         ], to: file)
 
-        let totals = await LocalUsageMetricsReader(homeDirectory: home).weeklyTotals(
+        let totals = await makeReader(homeDirectory: home).weeklyTotals(
             for: .claude,
             periodStart: date("2026-08-10T00:00:00Z"),
             periodEnd: date("2026-08-11T00:00:00Z")
@@ -255,7 +268,7 @@ struct LocalUsageMetricsReaderTests {
             codexTokenLine(input: 0, cached: 0, output: 0, reasoning: 0, total: 97_347)
         ], to: file)
 
-        let totals = await LocalUsageMetricsReader(homeDirectory: home).weeklyTotals(
+        let totals = await makeReader(homeDirectory: home).weeklyTotals(
             for: .codex,
             periodStart: date("2026-07-20T00:00:00Z"),
             periodEnd: date("2026-07-24T00:00:00Z")
@@ -278,7 +291,7 @@ struct LocalUsageMetricsReaderTests {
             claudeLine(messageID: "day-two", timestamp: "2026-07-23T10:00:00Z")
         ], to: file)
 
-        let totals = await LocalUsageMetricsReader(homeDirectory: home).dailyTokenTotals(
+        let totals = await makeReader(homeDirectory: home).dailyTokenTotals(
             for: .claude,
             periodStart: date("2026-07-22T00:00:00Z"),
             periodEnd: date("2026-07-24T00:00:00Z")
@@ -312,7 +325,7 @@ struct LocalUsageMetricsReaderTests {
             )
         ], to: file)
 
-        let totals = await LocalUsageMetricsReader(homeDirectory: home).dailyTokenTotals(
+        let totals = await makeReader(homeDirectory: home).dailyTokenTotals(
             for: .codex,
             periodStart: date("2026-07-22T00:00:00Z"),
             periodEnd: date("2026-07-24T00:00:00Z")
@@ -328,7 +341,7 @@ struct LocalUsageMetricsReaderTests {
             .appendingPathComponent(".claude/projects/demo", isDirectory: true)
             .appendingPathComponent("session.jsonl")
         try writeLines([claudeLine(messageID: "first")], to: file)
-        let reader = LocalUsageMetricsReader(homeDirectory: home, refreshInterval: 0)
+        let reader = makeReader(homeDirectory: home, refreshInterval: 0)
         let start = date("2026-07-20T00:00:00Z")
         let end = date("2026-07-24T00:00:00Z")
 
@@ -368,7 +381,7 @@ struct LocalUsageMetricsReaderTests {
             claudeLine(messageID: "first"),
             claudeLine(messageID: "second")
         ], to: file)
-        let reader = LocalUsageMetricsReader(homeDirectory: home, refreshInterval: 0)
+        let reader = makeReader(homeDirectory: home, refreshInterval: 0)
         let start = date("2026-07-20T00:00:00Z")
         let end = date("2026-07-24T00:00:00Z")
 
@@ -390,7 +403,7 @@ struct LocalUsageMetricsReaderTests {
             .appendingPathComponent(".claude/projects/demo", isDirectory: true)
             .appendingPathComponent("session.jsonl")
         try writeLines([claudeLine(messageID: "first")], to: file)
-        let reader = LocalUsageMetricsReader(
+        let reader = makeReader(
             homeDirectory: home,
             refreshInterval: 0
         )
@@ -445,7 +458,7 @@ struct LocalUsageMetricsReaderTests {
         let boundary = date("2026-07-23T10:00:00Z")
         let end = date("2026-07-23T11:00:00Z")
         try writeLines([claudeLine(messageID: "boundary")], to: file)
-        let reader = LocalUsageMetricsReader(homeDirectory: home, refreshInterval: 0)
+        let reader = makeReader(homeDirectory: home, refreshInterval: 0)
 
         // End is exclusive, including when the event is already in the index.
         #expect(await reader.weeklyTotals(for: .claude, periodStart: start, periodEnd: boundary) == nil)
@@ -466,7 +479,7 @@ struct LocalUsageMetricsReaderTests {
         defer { try? FileManager.default.removeItem(at: home) }
         let file = home.appendingPathComponent(".claude/projects/demo/session.jsonl")
         try writeLines([claudeLine(messageID: "boundary")], to: file)
-        let reader = LocalUsageMetricsReader(homeDirectory: home, refreshInterval: 0)
+        let reader = makeReader(homeDirectory: home, refreshInterval: 0)
         let start = date("2026-07-23T09:00:00Z")
         let boundary = date("2026-07-23T10:00:00Z")
         let end = date("2026-07-23T11:00:00Z")
@@ -486,7 +499,7 @@ struct LocalUsageMetricsReaderTests {
                        to: root.appendingPathComponent("first.jsonl"))
         try writeLines([claudeLine(messageID: "same", timestamp: "2026-07-23T10:05:00Z", input: 200)],
                        to: root.appendingPathComponent("second.jsonl"))
-        let reader = LocalUsageMetricsReader(homeDirectory: home, refreshInterval: 0)
+        let reader = makeReader(homeDirectory: home, refreshInterval: 0)
         let start = date("2026-07-23T09:00:00Z")
         let partial = await reader.weeklyTotals(
             for: .claude, periodStart: start, periodEnd: date("2026-07-23T10:03:00Z")

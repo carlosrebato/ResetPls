@@ -72,6 +72,7 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
     private let indexURL: URL
     private let logger = Logger(subsystem: "com.carlosrebato.aiusage", category: "LocalMetrics")
     private let refreshInterval: TimeInterval
+    private let clock: @Sendable () -> Date
     private var lastRefresh: [UsageProviderID: Date] = [:]
     private var indexGeneration: [UsageProviderID: Int] = [:]
     private var weeklyCache: [UsageProviderID: WeeklyCache] = [:]
@@ -82,7 +83,8 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
     public init(
         homeDirectory: URL? = nil,
         indexURL: URL? = nil,
-        refreshInterval: TimeInterval = 15 * 60
+        refreshInterval: TimeInterval = 15 * 60,
+        now: @escaping @Sendable () -> Date = { .now }
     ) {
         claudeRoot = homeDirectory?
             .appendingPathComponent(".claude/projects", isDirectory: true)
@@ -103,6 +105,7 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
         self.indexURL = resolvedIndexURL
         index = nil
         self.refreshInterval = refreshInterval
+        self.clock = now
     }
 
     public func weeklyTotals(
@@ -284,13 +287,14 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
             readStatuses[provider] = .failed
             return
         }
+        let now = clock()
         if let lastRefresh = lastRefresh[provider],
-           Date.now.timeIntervalSince(lastRefresh) < refreshInterval {
+           now.timeIntervalSince(lastRefresh) < refreshInterval {
             return
         }
         let diagnostics: LocalUsageMetricsDiagnostics?
         if let root = provider == .claude ? claudeRoot : codexRoot {
-            diagnostics = try? index.synchronize(provider: provider, root: root)
+            diagnostics = try? index.synchronize(provider: provider, root: root, now: now)
         } else if let dataAccess {
             let directory: ProviderDataDirectory = provider == .claude ? .claudeCode : .codex
             diagnostics = try? dataAccess.withAccess(to: directory) { root in
@@ -298,7 +302,7 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
                     provider == .claude ? "projects" : "sessions",
                     isDirectory: true
                 )
-                return try index.synchronize(provider: provider, root: sessionsRoot)
+                return try index.synchronize(provider: provider, root: sessionsRoot, now: now)
             }
         } else {
             diagnostics = nil
@@ -306,7 +310,7 @@ public actor LocalUsageMetricsReader: LocalUsageMetricsReading {
         if let diagnostics {
             readStatuses[provider] = .ready
             latestDiagnostics[provider] = diagnostics
-            lastRefresh[provider] = .now
+            lastRefresh[provider] = now
             if diagnostics.didChangeIndex || indexGeneration[provider] == nil {
                 indexGeneration[provider, default: 0] += 1
             }
