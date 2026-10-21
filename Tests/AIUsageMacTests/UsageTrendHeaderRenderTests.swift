@@ -10,7 +10,7 @@ struct UsageTrendHeaderRenderTests {
         let now = Date.now
         let snapshot = ProviderUsageSnapshot(id: .claude,
             session: UsageWindow(usedPercent: 28, resetsAt: now.addingTimeInterval(7200)),
-            weekly: UsageWindow(usedPercent: 43, resetsAt: now.addingTimeInterval(345600)),
+            weekly: UsageWindow(usedPercent: 43, resetsAt: now.addingTimeInterval(252000)),
             observedAt: now, source: .live, message: nil)
         for language in [AppLanguage.english, .spanish] {
             let renderer = ImageRenderer(content: UsageDetailedMetrics(
