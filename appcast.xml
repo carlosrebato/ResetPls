@@ -3,14 +3,14 @@
     <channel>
         <title>ResetPls</title>
         <item>
-            <title>0.1.8</title>
-            <pubDate>Tue, 13 Oct 2026 11:07:38 +0200</pubDate>
+            <title>0.1.9</title>
+            <pubDate>Wed, 21 Oct 2026 17:58:30 +0200</pubDate>
             <link>https://github.com/carlosrebato/ResetPls</link>
             <sparkle:fullReleaseNotesLink>https://github.com/carlosrebato/ResetPls/releases</sparkle:fullReleaseNotesLink>
-            <sparkle:version>56</sparkle:version>
-            <sparkle:shortVersionString>0.1.8</sparkle:shortVersionString>
+            <sparkle:version>59</sparkle:version>
+            <sparkle:shortVersionString>0.1.9</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
-            <enclosure url="https://github.com/carlosrebato/ResetPls/releases/download/v0.1.8/ResetPls-0.1.8.zip" length="4042434" type="application/octet-stream" sparkle:edSignature="6z7pmso6FLWI3GK1rbqXyrb9H4iHH1mTzxxaUheXx5BTyeBuEwDA+GiDF/zyV+1HHrLchTYIGEDRjPmPh/q4Aw=="/>
+            <enclosure url="https://github.com/carlosrebato/ResetPls/releases/download/v0.1.9/ResetPls-0.1.9.zip" length="4111380" type="application/octet-stream" sparkle:edSignature="3envD39ojB3rUOGa9TyR11KAOMlL1tLEdIR3jiV/pFAMcSoNOJ52HmLwonDCDyX1xEEShxVsjQX/hmkPoEJwDQ=="/>
         </item>
     </channel>
 </rss>
