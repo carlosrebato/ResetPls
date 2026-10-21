@@ -20,6 +20,7 @@ struct UsageTrendHeaderRenderTests {
             let tiff = try #require(renderer.nsImage?.tiffRepresentation)
             let image = try #require(NSBitmapImageRep(data: tiff)?.cgImage)
             let request = VNRecognizeTextRequest()
+            request.usesCPUOnly = true
             request.recognitionLevel = .accurate
             request.recognitionLanguages = [language == .english ? "en-US" : "es-ES"]
             try VNImageRequestHandler(cgImage: image).perform([request])
