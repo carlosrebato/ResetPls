@@ -288,6 +288,17 @@ public struct UsageDetailedMetrics: View {
                         .font(.system(size: 9, weight: .semibold))
                         .tracking(1.1)
                         .foregroundStyle(UsageTheme.red)
+                } else if snapshot.session.usedPercent != nil,
+                          let weeklyReset = snapshot.weekly.resetsAt {
+                    ViewThatFits(in: .horizontal) {
+                        Text("RESET \(UsageResetFormatter.string(until: weeklyReset, relativeTo: now))")
+                            .font(.system(size: 9, weight: .semibold))
+                            .monospacedDigit()
+                            .foregroundStyle(UsageTheme.mutedText)
+                            .fixedSize()
+                        Color.clear.frame(width: 0, height: 0)
+                    }
+                    .frame(maxWidth: 78, alignment: .leading)
                 }
             }
             UsagePaceLine(snapshot: snapshot, now: now, language: language)
