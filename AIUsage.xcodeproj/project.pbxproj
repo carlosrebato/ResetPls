@@ -109,7 +109,6 @@
 		53233494284243616896D95E /* IOSWidgetPreviewGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSWidgetPreviewGallery.swift; sourceTree = "<group>"; };
 		682E2BB9E803FB0662BAA680 /* AIUsageIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsageIOSApp.swift; sourceTree = "<group>"; };
 		6E807D698482110899B3D06D /* ClaudeDesktopAccessPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeDesktopAccessPicker.swift; sourceTree = "<group>"; };
-		7830A68AFD3E7DCD57630C0B /* resetpls-testflight-20261015-57 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "resetpls-testflight-20261015-57"; path = .; sourceTree = SOURCE_ROOT; };
 		7A8C5B96141520571B022EA1 /* ClaudeBrowserLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeBrowserLogin.swift; sourceTree = "<group>"; };
 		80F3A97FAFB482A477083468 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
 		896ACE1407350F5EE0D5B228 /* AIUsageWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsageWidgets.swift; sourceTree = "<group>"; };
@@ -122,6 +121,7 @@
 		CBEB9DBCAD3BB4D03259BD97 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		D8844BC471D00DAE4CA07A4F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		DB562CA2D1EE582B8E28475E /* AIUsageIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AIUsageIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		EA518BE171100A418E164541 /* resetpls-reconnect-ui-20261020 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "resetpls-reconnect-ui-20261020"; path = .; sourceTree = SOURCE_ROOT; };
 		F17790B1FDFFFA95070A3874 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -210,7 +210,7 @@
 		65C9F6C49F90B59D7DAD9264 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				7830A68AFD3E7DCD57630C0B /* resetpls-testflight-20261015-57 */,
+				EA518BE171100A418E164541 /* resetpls-reconnect-ui-20261020 */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -538,7 +538,7 @@
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Configurations/AIUsageIOS-Info.plist";
@@ -570,7 +570,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOSWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				INFOPLIST_FILE = "Configurations/AIUsageIOSWidgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -613,7 +613,7 @@
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Configurations/AIUsageIOS-Info.plist";
@@ -796,7 +796,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOSWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 57;
+				CURRENT_PROJECT_VERSION = 58;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				INFOPLIST_FILE = "Configurations/AIUsageIOSWidgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
