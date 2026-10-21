@@ -2,6 +2,18 @@
 
 All notable changes to ResetPls for Mac are documented here.
 
+## 0.1.9 — 2026-10-21
+
+- Make account reconnection explicit in the menu bar and usage panels, with a
+  direct reconnect action instead of unavailable pace predictions.
+- Preserve saved readings and distinguish authentication problems from
+  temporary network or refresh failures.
+- Show the weekly reset below the secondary quota when it fits, retaining the
+  existing typography and aligning the wider weekly bar with its reset label.
+- Use consistent RESET labels in English and Spanish.
+- Expand quota-history charts into previously unused vertical space.
+- Make local-history regression tests independent of the current date.
+
 ## 0.1.8 — 2026-10-13
 
 - Unify quota-history charts across Mac and iPhone, with an optional local-token

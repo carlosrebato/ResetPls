@@ -365,9 +365,9 @@ extension AppLanguage {
     }
 
     public func resetLabel(for snapshot: ProviderUsageSnapshot) -> String {
-        if snapshot.displaysWeeklyReset { return text("WEEKLY RESET", "RESETEO SEM.") }
+        if snapshot.displaysWeeklyReset { return text("RESET WK", "RESET SEM.") }
         return snapshot.availability == .available
-            ? text("RESETS", "RESETEO") : text("BACK IN", "DISPONIBLE EN")
+            ? "RESET" : text("BACK IN", "DISPONIBLE EN")
     }
 
     public func resetText(for snapshot: ProviderUsageSnapshot, now: Date) -> String {

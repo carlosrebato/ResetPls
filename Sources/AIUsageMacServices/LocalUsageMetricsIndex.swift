@@ -155,8 +155,8 @@ final class LocalUsageMetricsIndex {
         sqlite3_close(database)
     }
 
-    func synchronize(provider: UsageProviderID, root: URL) throws -> LocalUsageMetricsDiagnostics {
-        let retentionCutoff = Date.now.addingTimeInterval(-Self.retentionInterval)
+    func synchronize(provider: UsageProviderID, root: URL, now: Date = .now) throws -> LocalUsageMetricsDiagnostics {
+        let retentionCutoff = now.addingTimeInterval(-Self.retentionInterval)
         let files = jsonlFiles(below: root, modifiedSince: retentionCutoff)
         let currentPaths = Set(files.map { identifier(for: $0.url.path) })
         let removedMissingFiles = try removeMissingFiles(

@@ -10,7 +10,7 @@ struct UsageTrendHeaderRenderTests {
         let now = Date.now
         let snapshot = ProviderUsageSnapshot(id: .claude,
             session: UsageWindow(usedPercent: 28, resetsAt: now.addingTimeInterval(7200)),
-            weekly: UsageWindow(usedPercent: 43, resetsAt: now.addingTimeInterval(345600)),
+            weekly: UsageWindow(usedPercent: 43, resetsAt: now.addingTimeInterval(252000)),
             observedAt: now, source: .live, message: nil)
         for language in [AppLanguage.english, .spanish] {
             let renderer = ImageRenderer(content: UsageDetailedMetrics(
@@ -20,6 +20,7 @@ struct UsageTrendHeaderRenderTests {
             let tiff = try #require(renderer.nsImage?.tiffRepresentation)
             let image = try #require(NSBitmapImageRep(data: tiff)?.cgImage)
             let request = VNRecognizeTextRequest()
+            request.usesCPUOnly = true
             request.recognitionLevel = .accurate
             request.recognitionLanguages = [language == .english ? "en-US" : "es-ES"]
             try VNImageRequestHandler(cgImage: image).perform([request])
@@ -27,6 +28,12 @@ struct UsageTrendHeaderRenderTests {
                 .joined(separator: " ").uppercased()
             #expect(text.contains("CLAUDE"))
             #expect(text.contains("TOKENS"))
+            #expect(text.contains("RESET"))
+            if ProcessInfo.processInfo.environment["RESETPLS_RENDER_WEEKLY_RESET"] == "1" {
+                let png = try #require(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]))
+                let suffix = language == .spanish ? "es" : "en"
+                try png.write(to: URL(fileURLWithPath: "/private/tmp/resetpls-weekly-reset-\(suffix).png"))
+            }
         }
     }
 

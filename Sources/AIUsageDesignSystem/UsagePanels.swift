@@ -246,7 +246,7 @@ public struct UsageDetailedMetrics: View {
                         .fixedSize(horizontal: true, vertical: false)
                         UsageMeter(value: snapshot.weekly.normalizedPercent, severity: UsageSeverity.forPercent(snapshot.weekly.usedPercent))
                     }
-                    .frame(width: 78)
+                    .frame(width: 96)
                 }
             }
 
@@ -288,6 +288,16 @@ public struct UsageDetailedMetrics: View {
                         .font(.system(size: 9, weight: .semibold))
                         .tracking(1.1)
                         .foregroundStyle(UsageTheme.red)
+                } else if snapshot.session.usedPercent != nil,
+                          let weeklyReset = snapshot.weekly.resetsAt {
+                    ViewThatFits(in: .horizontal) {
+                        metric(
+                            label: "RESET",
+                            value: UsageResetFormatter.string(until: weeklyReset, relativeTo: now)
+                        )
+                        Color.clear.frame(width: 0, height: 0)
+                    }
+                    .frame(width: 96, alignment: .leading)
                 }
             }
             UsagePaceLine(snapshot: snapshot, now: now, language: language)
