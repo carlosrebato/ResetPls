@@ -246,7 +246,7 @@ public struct UsageDetailedMetrics: View {
                         .fixedSize(horizontal: true, vertical: false)
                         UsageMeter(value: snapshot.weekly.normalizedPercent, severity: UsageSeverity.forPercent(snapshot.weekly.usedPercent))
                     }
-                    .frame(width: 78)
+                    .frame(width: 96)
                 }
             }
 
@@ -297,7 +297,7 @@ public struct UsageDetailedMetrics: View {
                         )
                         Color.clear.frame(width: 0, height: 0)
                     }
-                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .frame(width: 96, alignment: .leading)
                 }
             }
             UsagePaceLine(snapshot: snapshot, now: now, language: language)

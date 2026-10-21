@@ -28,10 +28,10 @@ struct UsageTrendHeaderRenderTests {
             #expect(text.contains("CLAUDE"))
             #expect(text.contains("TOKENS"))
             #expect(text.contains("RESET"))
-            if ProcessInfo.processInfo.environment["RESETPLS_RENDER_WEEKLY_RESET"] == "1",
-               language == .spanish {
+            if ProcessInfo.processInfo.environment["RESETPLS_RENDER_WEEKLY_RESET"] == "1" {
                 let png = try #require(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]))
-                try png.write(to: URL(fileURLWithPath: "/private/tmp/resetpls-weekly-reset.png"))
+                let suffix = language == .spanish ? "es" : "en"
+                try png.write(to: URL(fileURLWithPath: "/private/tmp/resetpls-weekly-reset-\(suffix).png"))
             }
         }
     }

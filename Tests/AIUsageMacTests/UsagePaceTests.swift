@@ -95,7 +95,7 @@ struct UsagePaceTests {
         #expect(assessment.state == .onTrack)
         #expect(abs(assessment.projectedPercent - 87.5) < 0.001)
         #expect(AppLanguage.spanish.weeklyRiskText(assessment) == "A este ritmo, podrías acercarte al límite semanal")
-        #expect(AppLanguage.spanish.resetLabel(for: reading) == "RESETEO SEM.")
+        #expect(AppLanguage.spanish.resetLabel(for: reading) == "RESET SEM.")
         #expect(reading.signal(at: reading.observedAt) == .normal)
     }
 
@@ -247,7 +247,7 @@ struct UsagePaceTests {
         #expect(single.paceEstimate(at: start) == .insufficientData)
         #expect(single.sessionPaceStatus(at: start) == .unavailable)
         #expect(single.sessionPaceAssessment(at: start)?.reason == .insufficientHistory)
-        #expect(AppLanguage.english.resetLabel(for: single) == "RESETS")
+        #expect(AppLanguage.english.resetLabel(for: single) == "RESET")
         #expect(AppLanguage.english.resetText(for: single, now: start) == "Resets in 2h 0m")
         let tooShort = snapshot(session: 70, seconds: 60).recordingPace(previous: single)
         #expect(tooShort.paceEstimate(at: tooShort.observedAt) == .insufficientData)
