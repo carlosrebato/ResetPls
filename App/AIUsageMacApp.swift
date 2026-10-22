@@ -598,17 +598,6 @@ private final class NativeStatusBarController: NSObject {
         let language = AppLanguage.current
         let menu = NSMenu()
 
-        let refreshItem = NSMenuItem(
-            title: language.text("Refresh usage", "Actualizar uso"),
-            action: #selector(refreshUsageFromMenu(_:)),
-            keyEquivalent: ""
-        )
-        refreshItem.target = self
-        refreshItem.isEnabled = !store.isRefreshing
-        refreshItem.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
-        menu.addItem(refreshItem)
-        menu.addItem(.separator())
-
         let resetItem = NSMenuItem(
             title: language.text("Show reset times", "Mostrar tiempos de reseteo"),
             action: #selector(toggleResetTimes(_:)),
@@ -646,10 +635,6 @@ private final class NativeStatusBarController: NSObject {
             at: NSPoint(x: 0, y: button.bounds.minY - 4),
             in: button
         )
-    }
-
-    @objc private func refreshUsageFromMenu(_ sender: Any?) {
-        Task { await store.refreshManually() }
     }
 
     @objc private func toggleResetTimes(_ sender: NSMenuItem) {
