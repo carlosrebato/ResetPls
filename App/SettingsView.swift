@@ -345,7 +345,7 @@ struct SettingsView: View {
         let status = store.connectionStatuses.first { $0.id == provider }
         if status?.action == .retry {
             Task { @MainActor in
-                await store.refresh(force: true, allowInteraction: false, provider: provider)
+                await store.refreshManually(provider: provider)
             }
         } else {
             beginProviderSignIn(provider)

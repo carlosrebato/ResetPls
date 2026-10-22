@@ -43,7 +43,7 @@ struct DashboardView: View {
                         isRefreshing: store.isRefreshing,
                         errorMessage: claudeAccessError,
                         retry: {
-                            Task { await store.refresh(force: true, allowInteraction: true) }
+                            Task { await store.refreshManually() }
                         },
                         grantClaudeDesktopAccess: {
                             Task { await connectClaude() }
@@ -98,7 +98,7 @@ struct DashboardView: View {
     private var header: some View {
         HStack(alignment: .top) {
             Button {
-                Task { await store.refresh() }
+                Task { await store.refreshManually() }
             } label: {
                 Image(systemName: "arrow.clockwise")
             }

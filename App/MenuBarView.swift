@@ -148,16 +148,32 @@ struct MenuBarView: View {
 
             Spacer()
 
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(now, style: .time)
-                    .font(.system(size: 15, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(UsageTheme.primaryText)
-                UsageHeaderFreshnessLine(
-                    snapshots: visibleSnapshots,
-                    isRefreshing: store.isRefreshing,
-                    now: now,
-                    language: language
-                )
+            HStack(alignment: .center, spacing: 6) {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(now, style: .time)
+                        .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(UsageTheme.primaryText)
+                    UsageHeaderFreshnessLine(
+                        snapshots: visibleSnapshots,
+                        isRefreshing: store.isRefreshing,
+                        now: now,
+                        language: language
+                    )
+                }
+                Button {
+                    Task { await store.refreshManually() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(UsageTheme.mutedText.opacity(0.72))
+                        .frame(width: 14, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .disabled(store.isRefreshing)
+                .opacity(store.isRefreshing ? 0.45 : 1)
+                .help(language.text("Refresh usage", "Actualizar uso"))
+                .accessibilityLabel(language.text("Refresh usage", "Actualizar uso"))
             }
         }
     }

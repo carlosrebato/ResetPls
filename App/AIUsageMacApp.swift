@@ -5,6 +5,7 @@ import AIUsageProviderServices
 import AppKit
 import Combine
 import os
+import Network
 import SwiftUI
 
 private let menuBarLabelHeight: CGFloat = 19
@@ -250,6 +251,9 @@ private final class NativeStatusBarController: NSObject {
     private var cancellables = Set<AnyCancellable>()
     private var minuteTimer: AnyCancellable?
     private var wakeRecoveryTask: Task<Void, Never>?
+    private let networkMonitor = NWPathMonitor()
+    private var networkTransition = NetworkRecoveryTransition()
+    private var networkRecoveryTask: Task<Void, Never>?
     private let wakeLogger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "ResetPls",
         category: "wake-recovery"
@@ -274,6 +278,7 @@ private final class NativeStatusBarController: NSObject {
         configureStatusPanel()
         observeChanges()
         applyAutomaticRefreshPreference()
+        observeNetworkRecovery()
         updateStatusItem()
 #if DEBUG
         if CommandLine.arguments.contains("--verify-status-popover") {
@@ -405,6 +410,8 @@ private final class NativeStatusBarController: NSObject {
         if !enabled {
             wakeRecoveryTask?.cancel()
             wakeRecoveryTask = nil
+            networkRecoveryTask?.cancel()
+            networkRecoveryTask = nil
         }
         store.setAutomaticPollingEnabled(enabled)
     }
@@ -424,12 +431,57 @@ private final class NativeStatusBarController: NSObject {
                 guard let self, !Task.isCancelled else { return }
                 guard UserDefaults.standard.object(forKey: AppPreferenceKey.automaticRefresh)
                     as? Bool ?? true else { return }
+                if self.networkMonitor.currentPath.status == .satisfied {
+                    await self.store.recoverAfterNetworkChange()
+                }
                 await self.store.refreshWhenIdle(force: false, allowInteraction: false)
                 let states = self.store.connectionStatuses.map {
                     "\($0.id.rawValue):\($0.dataState.rawValue)"
                 }.joined(separator: ",")
                 self.wakeLogger.info("Wake probe \(attempt) complete; states=\(states, privacy: .public)")
             }
+        }
+    }
+
+    private func observeNetworkRecovery() {
+        networkMonitor.pathUpdateHandler = { [weak self] path in
+            let connected = path.status == .satisfied
+            Task { @MainActor [weak self] in self?.networkPathChanged(connected: connected) }
+        }
+        networkMonitor.start(queue: DispatchQueue(label: "ResetPls.network-recovery"))
+    }
+
+    deinit {
+        networkMonitor.cancel()
+        networkRecoveryTask?.cancel()
+        wakeRecoveryTask?.cancel()
+    }
+
+    private func networkPathChanged(connected: Bool) {
+        let shouldRecover = networkTransition.update(isConnected: connected)
+        if !connected {
+            networkRecoveryTask?.cancel()
+            networkRecoveryTask = nil
+            return
+        }
+        guard shouldRecover,
+              UserDefaults.standard.object(forKey: AppPreferenceKey.automaticRefresh) as? Bool ?? true
+        else { return }
+        networkRecoveryTask?.cancel()
+        networkRecoveryTask = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(3)) } catch { return }
+            guard let self, !Task.isCancelled,
+                  self.networkMonitor.currentPath.status == .satisfied,
+                  UserDefaults.standard.object(forKey: AppPreferenceKey.automaticRefresh) as? Bool ?? true
+            else { return }
+            // Cancel only the debounce, not a request that has already begun.
+            self.networkRecoveryTask = nil
+            self.wakeLogger.info("Network route recovered; checking transport-failed providers")
+            await self.store.recoverAfterNetworkChange()
+            let states = self.store.connectionStatuses.map {
+                "\($0.id.rawValue):\($0.dataState.rawValue)"
+            }.joined(separator: ",")
+            self.wakeLogger.info("Network recovery complete; states=\(states, privacy: .public)")
         }
     }
 
@@ -546,6 +598,17 @@ private final class NativeStatusBarController: NSObject {
         let language = AppLanguage.current
         let menu = NSMenu()
 
+        let refreshItem = NSMenuItem(
+            title: language.text("Refresh usage", "Actualizar uso"),
+            action: #selector(refreshUsageFromMenu(_:)),
+            keyEquivalent: ""
+        )
+        refreshItem.target = self
+        refreshItem.isEnabled = !store.isRefreshing
+        refreshItem.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: nil)
+        menu.addItem(refreshItem)
+        menu.addItem(.separator())
+
         let resetItem = NSMenuItem(
             title: language.text("Show reset times", "Mostrar tiempos de reseteo"),
             action: #selector(toggleResetTimes(_:)),
@@ -583,6 +646,10 @@ private final class NativeStatusBarController: NSObject {
             at: NSPoint(x: 0, y: button.bounds.minY - 4),
             in: button
         )
+    }
+
+    @objc private func refreshUsageFromMenu(_ sender: Any?) {
+        Task { await store.refreshManually() }
     }
 
     @objc private func toggleResetTimes(_ sender: NSMenuItem) {
