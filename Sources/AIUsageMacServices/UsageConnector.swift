@@ -16,6 +16,7 @@ enum UsageConnectorError: LocalizedError, Equatable, Sendable {
     case executableNotFound
     case launchFailed(String)
     case timedOut
+    case networkUnavailable
     case notAuthenticated(String)
     case reauthenticationRequired(String)
     case permissionRequired(String)
@@ -36,6 +37,8 @@ enum UsageConnectorError: LocalizedError, Equatable, Sendable {
             "\(language.text("Codex could not be launched", "No se pudo iniciar Codex")): \(reason)"
         case .timedOut:
             language.text("The request took too long to respond", "La consulta tardó demasiado en responder")
+        case .networkUnavailable:
+            language.text("The network connection is unavailable", "La conexión de red no está disponible")
         case .notAuthenticated(let message), .reauthenticationRequired(let message),
              .permissionRequired(let message):
             message

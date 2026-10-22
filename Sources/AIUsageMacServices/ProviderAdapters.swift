@@ -20,6 +20,8 @@ struct DirectUsageConnector: UsageConnector {
             }
         } catch let error as ProviderPolicyError {
             throw UsageConnectorError.serverError(error.localizedDescription)
+        } catch let error as URLError where error.code == .notConnectedToInternet || error.code == .networkConnectionLost {
+            throw UsageConnectorError.networkUnavailable
         }
     }
 
@@ -43,6 +45,8 @@ struct DirectUsageConnector: UsageConnector {
             .missingUsageWindows
         case .transport:
             .serverError(error.localizedDescription)
+        case .networkUnavailable:
+            .networkUnavailable
         }
     }
 }
@@ -106,7 +110,7 @@ actor ResilientUsageConnector: UsageConnector {
         return switch error {
         case .missingUsageWindows, .notAuthenticated, .reauthenticationRequired,
              .permissionRequired,
-             .rateLimited, .executableNotFound:
+             .rateLimited, .executableNotFound, .networkUnavailable:
             false
         case .launchFailed, .timedOut, .malformedResponse, .serverError:
             true
