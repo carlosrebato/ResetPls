@@ -30,6 +30,12 @@ public final class UsageStore: ObservableObject {
     private var verifyingProviders: Set<UsageProviderID> = []
     private var consecutiveFailures: [UsageProviderID: Int] = [:]
     private var nextRefreshAt: [UsageProviderID: Date] = [:]
+    private var networkFailures: Set<UsageProviderID> = []
+    private var providerRetryNotBefore: [UsageProviderID: Date] = [:]
+    private var lastNetworkRecovery: [UsageProviderID: Date] = [:]
+    private var lastManualRefresh: [UsageProviderID: Date] = [:]
+    private var allowsAutomaticRecovery = true
+    private let clock: @Sendable () -> Date
     private var lastStalePresentationProbeAt: Date?
 
     public var snapshots: [ProviderUsageSnapshot] {
@@ -58,7 +64,8 @@ public final class UsageStore: ObservableObject {
         cache: UsageSnapshotCache = UsageSnapshotCache(),
         statusCache: ProviderStatusCache? = nil,
         historyCache: UsageHistoryCache = UsageHistoryCache(),
-        metricsReader: any LocalUsageMetricsReading = EmptyLocalUsageMetricsReader()
+        metricsReader: any LocalUsageMetricsReading = EmptyLocalUsageMetricsReader(),
+        clock: @escaping @Sendable () -> Date = Date.init
     ) {
         let resolvedConnectors = [claudeConnector, codexConnector].compactMap { $0 }
         connectors = resolvedConnectors
@@ -69,6 +76,7 @@ public final class UsageStore: ObservableObject {
         )
         self.historyCache = historyCache
         self.metricsReader = metricsReader
+        self.clock = clock
         let cached = cache.load()
         history = historyCache.load()
         providerStates = UsageProviderID.allCases.map { provider in
@@ -163,7 +171,7 @@ public final class UsageStore: ObservableObject {
         provider: UsageProviderID? = nil
     ) async {
         guard !isRefreshing else { return }
-        let refreshStartedAt = Date.now
+        let refreshStartedAt = clock()
         let dueConnectors = connectors.filter { connector in
             (provider == nil || connector.providerID == provider)
                 && (force || (nextRefreshAt[connector.providerID] ?? .distantPast) <= refreshStartedAt)
@@ -183,6 +191,10 @@ public final class UsageStore: ObservableObject {
                                 try await connector.fetchSnapshot(allowInteraction: allowInteraction)
                             )
                         )
+                    } catch is CancellationError {
+                        return ConnectorOutcome(providerID: connector.providerID, value: .cancelled)
+                    } catch let error as URLError where error.code == .cancelled {
+                        return ConnectorOutcome(providerID: connector.providerID, value: .cancelled)
                     } catch {
                         return ConnectorOutcome(
                             providerID: connector.providerID,
@@ -210,7 +222,11 @@ public final class UsageStore: ObservableObject {
         var refreshEvidence = evidenceCache.load()
         for outcome in outcomes {
             switch outcome.value {
+            case .cancelled:
+                continue
             case .success(let snapshot):
+                networkFailures.remove(outcome.providerID)
+                providerRetryNotBefore.removeValue(forKey: outcome.providerID)
                 if snapshot.source == .live {
                     refreshEvidence[outcome.providerID] = UsageRefreshEvidence(attemptedAt: refreshStartedAt,
                         succeededAt: snapshot.observedAt, context: "mac")
@@ -233,10 +249,15 @@ public final class UsageStore: ObservableObject {
                     for: snapshot.severity,
                     consecutiveFailures: 0
                 )
-                nextRefreshAt[outcome.providerID] = .now.addingTimeInterval(Self.seconds(interval))
+                nextRefreshAt[outcome.providerID] = clock().addingTimeInterval(Self.seconds(interval))
                 receivedLiveData = receivedLiveData || snapshot.source == .live
                 snapshotsNeedingMetrics.append(snapshot)
             case .failure(let error, let message, let retryAfter):
+                if error == .networkUnavailable {
+                    networkFailures.insert(outcome.providerID)
+                } else {
+                    networkFailures.remove(outcome.providerID)
+                }
                 refreshEvidence[outcome.providerID] = UsageRefreshEvidence(attemptedAt: refreshStartedAt,
                     succeededAt: refreshEvidence[outcome.providerID]?.succeededAt, failedAt: .now,
                     context: "mac", errorCode: "request_failed")
@@ -307,7 +328,9 @@ public final class UsageStore: ObservableObject {
                 let backoff = Self.seconds(
                     PollingPolicy.interval(for: .unavailable, consecutiveFailures: failures)
                 )
-                nextRefreshAt[outcome.providerID] = .now.addingTimeInterval(max(backoff, retryAfter ?? 0))
+                let deadline = clock().addingTimeInterval(max(backoff, retryAfter ?? 0))
+                nextRefreshAt[outcome.providerID] = deadline
+                if isRateLimited { providerRetryNotBefore[outcome.providerID] = deadline }
             }
         }
 
@@ -335,6 +358,59 @@ public final class UsageStore: ObservableObject {
             try? await Task.sleep(for: .milliseconds(100))
         }
         await refresh(force: force, allowInteraction: allowInteraction, provider: provider)
+    }
+
+    /// A route returning must not bypass server backoff or prompt for sign-in.
+    public func recoverAfterNetworkChange() async {
+        while isRefreshing {
+            do { try await Task.sleep(for: .milliseconds(100)) } catch { return }
+        }
+        guard allowsAutomaticRecovery, !Task.isCancelled else { return }
+        let now = clock()
+        let recoverable = networkFailures.filter { id in
+            (providerRetryNotBefore[id] ?? .distantPast) <= now
+                && now.timeIntervalSince(lastNetworkRecovery[id] ?? .distantPast) >= 30
+                && !verifyingProviders.contains(id)
+                && !connectionStatuses.contains { status in
+                    status.id == id && (status.dataState == .reauthRequired || status.dataState == .setupRequired)
+                }
+        }
+        guard !recoverable.isEmpty else { return }
+        for provider in recoverable {
+            guard allowsAutomaticRecovery, !Task.isCancelled,
+                  networkFailures.contains(provider), !verifyingProviders.contains(provider),
+                  !connectionStatuses.contains(where: {
+                      $0.id == provider && ($0.dataState == .reauthRequired || $0.dataState == .setupRequired)
+                  }) else { continue }
+            lastNetworkRecovery[provider] = clock()
+            nextRefreshAt[provider] = clock()
+            await refresh(force: false, allowInteraction: false, provider: provider)
+        }
+    }
+
+    /// Explicit user action overrides the client timer, never provider throttling.
+    public func refreshManually(provider: UsageProviderID? = nil) async {
+        guard !isRefreshing, !Task.isCancelled else { return }
+        let now = clock()
+        let eligible = connectors.map(\.providerID).filter { id in
+            (provider == nil || provider == id)
+                && (providerRetryNotBefore[id] ?? .distantPast) <= now
+                && now.timeIntervalSince(lastManualRefresh[id] ?? .distantPast) >= 5
+                && !verifyingProviders.contains(id)
+                && !connectionStatuses.contains {
+                    $0.id == id && ($0.dataState == .reauthRequired || $0.dataState == .setupRequired)
+                }
+        }
+        for id in eligible {
+            guard !Task.isCancelled, !verifyingProviders.contains(id),
+                  (providerRetryNotBefore[id] ?? .distantPast) <= clock(),
+                  !connectionStatuses.contains(where: {
+                      $0.id == id && ($0.dataState == .reauthRequired || $0.dataState == .setupRequired)
+                  }) else { continue }
+            lastManualRefresh[id] = now
+            nextRefreshAt[id] = now
+            await refresh(force: false, allowInteraction: false, provider: id)
+        }
     }
 
     /// A sleeping Mac may delay the background timer. On opening the menu,
@@ -484,6 +560,7 @@ public final class UsageStore: ObservableObject {
     }
 
     public func setAutomaticPollingEnabled(_ isEnabled: Bool) {
+        allowsAutomaticRecovery = isEnabled
         if isEnabled {
             startPolling()
         } else {
@@ -737,7 +814,7 @@ public final class UsageStore: ObservableObject {
                 "\(providerID.displayName) did not return usage limits.",
                 "\(providerID.displayName) no devolvió los límites de uso."
             )
-        case .rateLimited, .launchFailed, .timedOut, .malformedResponse,
+        case .rateLimited, .launchFailed, .timedOut, .networkUnavailable, .malformedResponse,
              .serverError, .none:
             phase = .retrying
             displayMessage = message
@@ -847,6 +924,7 @@ private struct EmptyLocalUsageMetricsReader: LocalUsageMetricsReading {
 
 private struct ConnectorOutcome: Sendable {
     enum Value: Sendable {
+        case cancelled
         case success(ProviderUsageSnapshot)
         case failure(
             error: UsageConnectorError?,

@@ -232,6 +232,37 @@ struct ProviderOAuthTests {
         #expect(snapshot.weekly.resetsAt != nil)
     }
 
+    @Test func networkRecoveryClassificationDoesNotIncludeTLSOrTimeoutsAndKeepsTokens() async throws {
+        for provider in UsageProviderID.allCases {
+            for code in [URLError.Code.notConnectedToInternet, .networkConnectionLost, .timedOut, .secureConnectionFailed, .cancelled] {
+                let token = StoredProviderToken(accessToken: "fixture-token", refreshToken: "fixture-refresh",
+                    idToken: nil, expiresAt: Date(timeIntervalSince1970: 10000), accountID: "fixture-account", scopes: ["user:profile"])
+                let storage = MemoryVaultStorage(token)
+                let account = ProviderOAuthAccount(configuration: provider == .claude ? .claude : .codex,
+                    vault: MemoryVault(storage: storage), session: testSession(), now: { Date(timeIntervalSince1970: 100) })
+                OAuthURLProtocol.handler = { _ in throw URLError(code) }
+                let adapter: any DirectUsageAdapter = provider == .claude
+                    ? ClaudeDirectAdapter(account: account, session: testSession(), endpoint: URL(string: "https://example.com/usage")!)
+                    : CodexDirectAdapter(account: account, session: testSession(), endpoint: URL(string: "https://example.com/usage")!)
+                do {
+                    _ = try await adapter.fetchSnapshot()
+                    Issue.record("Expected a simulated transport failure")
+                } catch is CancellationError {
+                    #expect(code == .cancelled)
+                } catch let error as DirectUsageError {
+                    let expected: DirectUsageError = switch code {
+                    case .notConnectedToInternet, .networkConnectionLost: .networkUnavailable
+                    case .timedOut: .timedOut
+                    default: .transport
+                    }
+                    #expect(error == expected)
+                }
+                #expect(storage.load()?.accessToken == "fixture-token")
+                #expect(storage.load()?.refreshToken == "fixture-refresh")
+            }
+        }
+    }
+
     private func testSession() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [OAuthURLProtocol.self]

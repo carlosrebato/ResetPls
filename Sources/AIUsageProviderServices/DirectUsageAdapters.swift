@@ -10,6 +10,7 @@ public enum DirectUsageError: LocalizedError, Equatable, Sendable {
     case malformedResponse
     case missingUsageWindows
     case transport
+    case networkUnavailable
 
     public var errorDescription: String? {
         switch self {
@@ -23,6 +24,7 @@ public enum DirectUsageError: LocalizedError, Equatable, Sendable {
         case .malformedResponse: "The provider returned an unknown response."
         case .missingUsageWindows: "The provider did not return usage limits."
         case .transport: "The provider could not be reached."
+        case .networkUnavailable: "The network connection is unavailable."
         }
     }
 
@@ -130,6 +132,10 @@ public actor ClaudeDirectAdapter: DirectUsageAdapter {
             return (data, http)
         } catch is CancellationError {
             throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .notConnectedToInternet || error.code == .networkConnectionLost {
+            throw DirectUsageError.networkUnavailable
         } catch let error as URLError where error.code == .timedOut {
             throw DirectUsageError.timedOut
         } catch let error as DirectUsageError {
@@ -225,6 +231,10 @@ public actor CodexDirectAdapter: DirectUsageAdapter {
             return (data, http)
         } catch is CancellationError {
             throw CancellationError()
+        } catch let error as URLError where error.code == .cancelled {
+            throw CancellationError()
+        } catch let error as URLError where error.code == .notConnectedToInternet || error.code == .networkConnectionLost {
+            throw DirectUsageError.networkUnavailable
         } catch let error as URLError where error.code == .timedOut {
             throw DirectUsageError.timedOut
         } catch let error as DirectUsageError {
