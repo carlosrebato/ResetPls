@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 public struct UsageHistoryDay: Identifiable, Equatable, Codable, Sendable {
     public let date: Date
@@ -124,6 +125,95 @@ public struct UsageHistory: Equatable, Codable, Sendable {
 
 public struct UsageHistoryCache: Sendable {
     public let fileURL: URL
+    private static let writeLock = NSLock()
+
+    /// Local recovery copies only; never uploaded. The baseline is never rotated.
+    public var backupDirectoryURL: URL {
+        fileURL.deletingLastPathComponent().appendingPathComponent(
+            fileURL.deletingPathExtension().lastPathComponent + "-backups", isDirectory: true
+        )
+    }
+
+    public enum PersistenceError: Error {
+        case unsupportedFormat
+        case missingHistoryWithBackups
+    }
+
+    private struct Document {
+        let history: UsageHistory
+        let data: Data?
+    }
+
+    private func readForWriting() throws -> Document {
+        let data: Data
+        do {
+            data = try Data(contentsOf: fileURL)
+        } catch CocoaError.fileReadNoSuchFile {
+            // A missing primary file must not silently start over if recovery data exists.
+            if FileManager.default.fileExists(atPath: backupDirectoryURL.path) {
+                throw PersistenceError.missingHistoryWithBackups
+            }
+            return Document(history: UsageHistory(), data: nil)
+        }
+        let history = try JSONDecoder().decode(UsageHistory.self, from: data)
+        guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+              Set(object.keys).isSubset(of: ["days", "schemaVersion"]),
+              let days = object["days"] as? [[String: Any]],
+              Set(history.days.map(\.date)).count == history.days.count else {
+            throw PersistenceError.unsupportedFormat
+        }
+        if let version = object["schemaVersion"] {
+            guard let number = version as? NSNumber,
+                  CFGetTypeID(number) != CFBooleanGetTypeID(), number == 1 else {
+                throw PersistenceError.unsupportedFormat
+            }
+        }
+        let knownFields: Set<String> = [
+            "date", "claudePercent", "codexPercent", "claudeTokens", "codexTokens", "activity",
+            "claudeWeeklyPercent", "codexWeeklyPercent", "claudeWeeklyObservedAt", "codexWeeklyObservedAt"
+        ]
+        guard days.allSatisfy({ Set($0.keys).isSubset(of: knownFields) }) else {
+            // Refuse to re-encode fields we cannot preserve, including future quota metrics.
+            throw PersistenceError.unsupportedFormat
+        }
+        return Document(history: history, data: data)
+    }
+
+    private func save(_ history: UsageHistory, replacing document: Document) throws {
+        var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(history)) as! [String: Any]
+        object["schemaVersion"] = 1
+        let encoded = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        let manager = FileManager.default
+        try manager.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+
+        // Back up only validated, nonempty input, before touching the primary file.
+        // Failure to create a required backup aborts the write too.
+        if let original = document.data, !document.history.days.isEmpty {
+            try manager.createDirectory(at: backupDirectoryURL, withIntermediateDirectories: true)
+            let baseline = backupDirectoryURL.appendingPathComponent("before-protection-v1.json")
+            if !manager.fileExists(atPath: baseline.path) {
+                try original.write(to: baseline, options: .atomic)
+            }
+            let formatter = DateFormatter()
+            formatter.calendar = Calendar(identifier: .gregorian)
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(secondsFromGMT: 0)
+            formatter.dateFormat = "yyyy-MM-dd"
+            let daily = backupDirectoryURL.appendingPathComponent("daily-\(formatter.string(from: Date())).json")
+            if !manager.fileExists(atPath: daily.path) {
+                try original.write(to: daily, options: .atomic)
+            }
+        }
+        try encoded.write(to: fileURL, options: .atomic)
+
+        // Rotation is best effort, after a successful save. Never remove the baseline.
+        if let files = try? manager.contentsOfDirectory(at: backupDirectoryURL, includingPropertiesForKeys: nil) {
+            let daily = files.filter {
+                $0.lastPathComponent.range(of: #"^daily-\d{4}-\d{2}-\d{2}\.json$"#, options: .regularExpression) != nil
+            }.sorted { $0.lastPathComponent > $1.lastPathComponent }
+            for old in daily.dropFirst(7) { try? manager.removeItem(at: old) }
+        }
+    }
 
     public init(fileURL: URL? = nil, fileManager: FileManager = .default) {
         if let fileURL {
@@ -151,7 +241,10 @@ public struct UsageHistoryCache: Sendable {
         at now: Date,
         calendar: Calendar = .current
     ) throws -> UsageHistory {
-        var history = load()
+        Self.writeLock.lock()
+        defer { Self.writeLock.unlock() }
+        let document = try readForWriting()
+        var history = document.history
         let day = calendar.startOfDay(for: now)
         for snapshot in snapshots where snapshot.source == .live {
             if let weekly = snapshot.weekly.usedPercent, weekly.isFinite {
@@ -196,11 +289,7 @@ public struct UsageHistoryCache: Sendable {
         let cutoff = calendar.date(byAdding: .day, value: -60, to: day) ?? .distantPast
         history.days = history.days.filter { $0.date >= cutoff }.sorted { $0.date < $1.date }
 
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try JSONEncoder().encode(history).write(to: fileURL, options: .atomic)
+        try save(history, replacing: document)
         return history
     }
 
@@ -210,7 +299,10 @@ public struct UsageHistoryCache: Sendable {
         periodEnd: Date,
         calendar: Calendar = .current
     ) throws -> UsageHistory {
-        var history = load()
+        Self.writeLock.lock()
+        defer { Self.writeLock.unlock() }
+        let document = try readForWriting()
+        var history = document.history
         let normalizedDates = Set(activityDates.map { calendar.startOfDay(for: $0) })
             .filter { periodStart <= $0 && $0 < periodEnd }
 
@@ -230,11 +322,7 @@ public struct UsageHistoryCache: Sendable {
         }
 
         history.days.sort { $0.date < $1.date }
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try JSONEncoder().encode(history).write(to: fileURL, options: .atomic)
+        try save(history, replacing: document)
         return history
     }
 
@@ -244,7 +332,10 @@ public struct UsageHistoryCache: Sendable {
         periodEnd: Date,
         calendar: Calendar = .current
     ) throws -> UsageHistory {
-        var history = load()
+        Self.writeLock.lock()
+        defer { Self.writeLock.unlock() }
+        let document = try readForWriting()
+        var history = document.history
 
         for provider in UsageProviderID.allCases {
             // A missing or empty scan is not proof that the user has no history.
@@ -288,11 +379,7 @@ public struct UsageHistoryCache: Sendable {
         }
 
         history.days.sort { $0.date < $1.date }
-        try FileManager.default.createDirectory(
-            at: fileURL.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try JSONEncoder().encode(history).write(to: fileURL, options: .atomic)
+        try save(history, replacing: document)
         return history
     }
 }

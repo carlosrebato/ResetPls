@@ -50,19 +50,7 @@ struct SettingsView: View {
                     header
                     assistantsSection
 
-                settingsSection(language.text("General", "General")) {
-                    preferenceRow(
-                        systemName: "arrow.triangle.2.circlepath",
-                        title: language.text("Automatic refresh", "Actualizar automáticamente"),
-                        subtitle: language.text(
-                            "Keeps your limits current in the background",
-                            "Mantiene los límites al día en segundo plano"
-                        ),
-                        isOn: $automaticRefresh
-                    )
-
-                    settingsDivider
-
+                    settingsSection(language.text("Menu bar", "Barra de menú")) {
                     preferenceRow(
                         systemName: "menubar.rectangle",
                         title: language.text(
@@ -93,11 +81,26 @@ struct SettingsView: View {
                     .disabled(!showPercentage)
                     .opacity(showPercentage ? 1 : 0.52)
 
+                    }
+
+                    settingsSection(language.text("General", "General")) {
+                    preferenceRow(
+                        systemName: "arrow.triangle.2.circlepath",
+                        title: language.text("Automatic refresh", "Actualizar automáticamente"),
+                        subtitle: language.text(
+                            "Keeps your limits current in the background",
+                            "Mantiene los límites al día en segundo plano"
+                        ),
+                        isOn: $automaticRefresh
+                    )
+
                     settingsDivider
                     languageRow
-                }
+                    settingsDivider
+                    launchRow
+                    }
 
-                    launchSection
+                    UsageIPhoneDownloadCallout(language: language)
                     privacyCallout
                     supportActions
                 }
@@ -164,10 +167,6 @@ struct SettingsView: View {
                 .interpolation(.high)
                 .frame(width: 46, height: 46)
                 .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .stroke(Color.white.opacity(0.09), lineWidth: 1)
-                }
 
             VStack(alignment: .leading, spacing: 2) {
                 Text("ResetPls")
@@ -202,10 +201,6 @@ struct SettingsView: View {
                 providerCard(.claude)
                 providerCard(.codex)
             }
-            Text(LocalTokenHistoryState.explanation(language: language))
-                .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(SettingsPalette.secondary)
-                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -380,8 +375,8 @@ struct SettingsView: View {
         provider == .claude ? .claudeCode : .codex
     }
 
-    private var launchSection: some View {
-        settingsSection(language.text("Startup", "Inicio")) {
+    @ViewBuilder
+    private var launchRow: some View {
             HStack(spacing: 13) {
                 settingsIcon("power")
 
@@ -421,7 +416,6 @@ struct SettingsView: View {
                 .padding(.leading, 58)
                 .padding(.bottom, 12)
             }
-        }
     }
 
     private var privacyCallout: some View {

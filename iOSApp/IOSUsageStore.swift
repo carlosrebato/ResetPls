@@ -16,6 +16,7 @@ final class IOSUsageStore: ObservableObject {
     @Published private(set) var authenticatingProviders: Set<UsageProviderID> = []
     @Published private(set) var isDemoMode = ProcessInfo.processInfo.arguments.contains("--app-review-demo")
 
+    private let demoStore: UsageDemoStore
     private let cache: LastKnownCache
     private let historyCache: UsageHistoryCache
     private let statusCache: ProviderStatusCache
@@ -83,6 +84,8 @@ final class IOSUsageStore: ObservableObject {
     ) {
         let resolvedCache = cache ?? LastKnownCache()
         self.cache = resolvedCache
+        demoStore = UsageDemoStore(fileURL: resolvedCache.fileURL.deletingLastPathComponent()
+            .appendingPathComponent("ios-widget-demo.flag"))
         self.historyCache = historyCache ?? UsageHistoryCache()
         self.statusCache = statusCache ?? ProviderStatusCache(
             fileURL: resolvedCache.fileURL.deletingLastPathComponent()
@@ -91,6 +94,8 @@ final class IOSUsageStore: ObservableObject {
         refresher = SharedUsageRefresh(claude: claude, codex: codex, cache: resolvedCache,
             historyCache: self.historyCache, statusCache: self.statusCache)
         history = self.historyCache.load()
+        isDemoMode = isDemoMode || demoStore.isEnabled
+        if isDemoMode { try? demoStore.setEnabled(true) }
         if isDemoMode {
             applyDemo()
         } else {
@@ -196,7 +201,10 @@ final class IOSUsageStore: ObservableObject {
         // Do not switch while authentication/refresh is suspended: its result
         // could otherwise replace the preview or persist synthetic values.
         guard !isRefreshing, authenticatingProviders.isEmpty else { return }
+        do { try demoStore.setEnabled(enabled) }
+        catch { return }
         isDemoMode = enabled
+        defer { WidgetCenter.shared.reloadAllTimelines() }
         if enabled {
             applyDemo()
         } else {
@@ -249,45 +257,9 @@ final class IOSUsageStore: ObservableObject {
 
     private func applyDemo() {
         let now = Date.now
-        snapshots = [
-            ProviderUsageSnapshot(
-                id: .claude,
-                session: UsageWindow(usedPercent: 28, resetsAt: now.addingTimeInterval(2 * 3600)),
-                weekly: UsageWindow(usedPercent: 43, resetsAt: now.addingTimeInterval(4 * 86_400)),
-                observedAt: now,
-                source: .mock,
-                message: "App Review demo"
-            ),
-            ProviderUsageSnapshot(
-                id: .codex,
-                session: UsageWindow(usedPercent: 64, resetsAt: now.addingTimeInterval(90 * 60)),
-                weekly: UsageWindow(usedPercent: 37, resetsAt: now.addingTimeInterval(5 * 86_400)),
-                observedAt: now,
-                source: .mock,
-                message: "App Review demo"
-            )
-        ]
+        snapshots = UsageDemoStore.snapshots(at: now)
         states = [.claude: .live, .codex: .live]
         messages = [:]
-        history = Self.demoHistory(relativeTo: now)
-    }
-
-    private static func demoHistory(relativeTo now: Date) -> UsageHistory {
-        let calendar = Calendar.current
-        let claude = [8.0, 17, 25, 32, 36, 40, 43]
-        let codex = [25.0, 62, 0, 8, 17, 29, 37]
-        let days = (-6...0).compactMap { offset -> UsageHistoryDay? in
-            guard let date = calendar.date(byAdding: .day, value: offset, to: now) else { return nil }
-            let index = offset + 6
-            return UsageHistoryDay(
-                date: calendar.startOfDay(for: date),
-                claudePercent: claude[index],
-                codexPercent: codex[index],
-                activity: true,
-                claudeWeeklyPercent: claude[index],
-                codexWeeklyPercent: codex[index]
-            )
-        }
-        return UsageHistory(days: days)
+        history = UsageDemoStore.history(at: now)
     }
 }

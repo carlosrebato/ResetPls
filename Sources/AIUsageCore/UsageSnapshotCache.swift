@@ -128,3 +128,59 @@ public struct ProviderStatusCache: Sendable {
         try data.write(to: fileURL, options: .atomic)
     }
 }
+
+/// iPhone demo selection is isolated from real readings, status and history.
+public struct UsageDemoStore: Sendable {
+    public let fileURL: URL
+    public init(fileURL: URL? = nil) {
+        self.fileURL = fileURL ?? UsageSnapshotCache().fileURL.deletingLastPathComponent()
+            .appendingPathComponent("ios-widget-demo.flag")
+    }
+    public var isEnabled: Bool { FileManager.default.fileExists(atPath: fileURL.path) }
+    public func setEnabled(_ enabled: Bool) throws {
+        if enabled {
+            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("demo".utf8).write(to: fileURL, options: .atomic)
+        } else if isEnabled {
+            try FileManager.default.removeItem(at: fileURL)
+        }
+    }
+    public static func snapshots(at now: Date) -> [ProviderUsageSnapshot] {
+        return [
+            ProviderUsageSnapshot(
+                id: .claude,
+                session: UsageWindow(usedPercent: 28, resetsAt: now.addingTimeInterval(2 * 3600)),
+                weekly: UsageWindow(usedPercent: 43, resetsAt: now.addingTimeInterval(4 * 86_400)),
+                observedAt: now,
+                source: .mock,
+                message: "App Review demo"
+            ),
+            ProviderUsageSnapshot(
+                id: .codex,
+                session: UsageWindow(usedPercent: 64, resetsAt: now.addingTimeInterval(90 * 60)),
+                weekly: UsageWindow(usedPercent: 37, resetsAt: now.addingTimeInterval(5 * 86_400)),
+                observedAt: now,
+                source: .mock,
+                message: "App Review demo"
+            )
+        ]
+    }
+    public static func history(at now: Date) -> UsageHistory {
+        let calendar = Calendar.current
+        let claude = [8.0, 17, 25, 32, 36, 40, 43]
+        let codex = [25.0, 62, 0, 8, 17, 29, 37]
+        let days = (-6...0).compactMap { offset -> UsageHistoryDay? in
+            guard let date = calendar.date(byAdding: .day, value: offset, to: now) else { return nil }
+            let index = offset + 6
+            return UsageHistoryDay(
+                date: calendar.startOfDay(for: date),
+                claudePercent: claude[index],
+                codexPercent: codex[index],
+                activity: true,
+                claudeWeeklyPercent: claude[index],
+                codexWeeklyPercent: codex[index]
+            )
+        }
+        return UsageHistory(days: days)
+    }
+}

@@ -16,6 +16,7 @@ struct IOSSettingsView: View {
                     VStack(alignment: .leading, spacing: 26) {
                         providersSection
                         preferencesSection
+                        UsageMacDownloadCallout(language: language)
                         privacyNote
                         supportSection
                         footer
