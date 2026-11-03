@@ -13,4 +13,4 @@ Archive: /tmp/resetpls-ios-70.xcarchive
 Upload log: /tmp/resetpls-ios-70-upload.log
 Visuals: /tmp/resetpls70-settings-en.png and /tmp/resetpls70-settings-es.png
 
-Upload/ASC processing: pending verification.
+Upload succeeded. Apple processing VALID. Internal TestFlight IN_BETA_TESTING. Build 20040ffa-7611-43ea-93d9-92aee191bd6f selected for App Store version 1.0. Review notes updated to document widget demo. Not submitted for App Review.
