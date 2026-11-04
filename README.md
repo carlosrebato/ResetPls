@@ -1,8 +1,8 @@
 # ResetPls — Claude Code & Codex Usage Tracker for Mac and iPhone
 
-> This repository contains ResetPls source, signed Mac releases and its Sparkle
-> update feed. See [MIGRATION.md](MIGRATION.md) for the one-time manual migration
-> from the retired private repository.
+**ResetPls is open source on both Mac and iPhone.** You can build either app
+from this repository. The Mac app is free, and when the iPhone app launches on
+the App Store, buying it will be a way to support development.
 
 [![CI](https://github.com/carlosrebato/ResetPls/actions/workflows/ci.yml/badge.svg)](https://github.com/carlosrebato/ResetPls/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/carlosrebato/ResetPls/actions/workflows/codeql.yml/badge.svg)](https://github.com/carlosrebato/ResetPls/actions/workflows/codeql.yml)
@@ -22,6 +22,9 @@ signed update channel or constitute an App Store release.
 
 ## Install
 
+For the one-time Mac migration from the retired private repository, see
+[MIGRATION.md](MIGRATION.md).
+
 Download the latest notarized macOS ZIP from
 [GitHub Releases](https://github.com/carlosrebato/ResetPls/releases). Quit the
 running app, unzip the download and drag **ResetPls.app** into Applications,
@@ -37,7 +40,7 @@ in this repository, along with signed downloads and automatic updates.
 
 ## Requirements
 
-- macOS 15 or iOS 18 (the iOS target is currently an App Review viability spike)
+- macOS 15 or later for Mac, or iOS 18 or later for iPhone
 - A Claude or ChatGPT account. Each device signs in independently through the
   provider; ResetPls never imports a Claude Code, Codex CLI or desktop token.
 
