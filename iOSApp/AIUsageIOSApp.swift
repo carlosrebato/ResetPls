@@ -1,4 +1,5 @@
 import SwiftUI
+import AIUsageCore
 import BackgroundTasks
 import AIUsageProviderServices
 import WidgetKit
@@ -37,6 +38,7 @@ struct AIUsageIOSApp: App {
             Task { await store.refresh() }
         }
         .backgroundTask(.appRefresh("crbg.resetpls.refresh")) {
+            guard !UsageDemoStore().isEnabled else { return }
             await MainActor.run { scheduleBackgroundRefresh() }
             _ = try? await SharedUsageRefresh.shared.refresh(context: "background")
             if !Task.isCancelled { WidgetCenter.shared.reloadAllTimelines() }

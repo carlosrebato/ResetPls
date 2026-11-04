@@ -61,7 +61,9 @@ private struct UsageWidgetProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping @Sendable (Timeline<UsageWidgetEntry>) -> Void) {
         #if os(iOS)
         Task {
-            _ = try? await SharedUsageRefresh.shared.refresh(context: "widget")
+            if !UsageDemoStore().isEnabled {
+                _ = try? await SharedUsageRefresh.shared.refresh(context: "widget")
+            }
             let entry = entry(usePreviewIfEmpty: false)
             completion(Timeline(entries: [entry], policy: .after(entry.date.addingTimeInterval(900))))
         }
@@ -82,6 +84,12 @@ private struct UsageWidgetProvider: TimelineProvider {
                 history: Self.previewHistory(at: now)
             )
         }
+        #if os(iOS)
+        if UsageDemoStore().isEnabled {
+            return UsageWidgetEntry(date: now, snapshots: UsageDemoStore.snapshots(at: now),
+                states: [.claude: .live, .codex: .live], history: UsageDemoStore.history(at: now))
+        }
+        #endif
         let cached = UsageSnapshotCache().load()
         let states = ProviderStatusCache().load().mapValues(\.state)
         // iOS builds prior to 0.1.3 (22) never initialized provider visibility.
@@ -144,7 +152,9 @@ private struct ProviderWidgetTimelineProvider: AppIntentTimelineProvider {
 
     func timeline(for configuration: ProviderWidgetIntent, in context: Context) async -> Timeline<UsageWidgetEntry> {
         #if os(iOS)
-        _ = try? await SharedUsageRefresh.shared.refresh(context: "widget")
+        if !UsageDemoStore().isEnabled {
+                _ = try? await SharedUsageRefresh.shared.refresh(context: "widget")
+            }
         #endif
         Logger(subsystem: "crbg.resetpls.widgets", category: "configuration")
             .notice("Widget service: \(configuration.provider?.rawValue ?? "unset", privacy: .public)")
@@ -304,7 +314,7 @@ private struct UsageWidgetView: View {
         return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 7) {
                 ProviderGlyph(provider: snapshot.id, size: 13, color: UsageTheme.secondaryText)
-                Text(snapshot.id.displayName)
+                Text(mediumProviderName(snapshot.id))
                     .font(.system(size: 11.5, weight: .semibold))
                     .foregroundStyle(UsageTheme.secondaryText)
                     .lineLimit(1)
@@ -529,7 +539,9 @@ private struct UsageWidgetView: View {
         return HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 5) {
                 HStack(alignment: .firstTextBaseline, spacing: 7) {
-                    Text(String(count))
+                    Text(streakCountText(count))
+                        .accessibilityLabel(streakCountText(count) == "—"
+                            ? language.text("No streak data", "Sin datos de racha") : String(count))
                         .font(.system(size: 24, weight: .bold))
                         .foregroundStyle(UsageTheme.green)
                     Text(language.text("DAY STREAK", "RACHA DIARIA"))
@@ -573,7 +585,11 @@ private struct UsageWidgetView: View {
                     )
                     .rotationEffect(.degrees(-90))
                 VStack(spacing: 1) {
-                    ProviderGlyph(provider: snapshot.id, size: 9, color: .primary.opacity(0.78))
+                    if isDemo {
+                        Text("DEMO").font(.system(size: 7, weight: .bold))
+                    } else {
+                        ProviderGlyph(provider: snapshot.id, size: 9, color: .primary.opacity(0.78))
+                    }
                     if actionLabel(for: snapshot.id) != nil {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 13, weight: .bold))
@@ -634,9 +650,9 @@ private struct UsageWidgetView: View {
                             .minimumScaleFactor(0.8)
                             .frame(width: 40, alignment: .leading)
                         accessoryMeter(snapshot)
-                        Text(actionLabel(for: snapshot.id) ?? (isStale(snapshot)
+                        Text(isDemo ? "DEMO" : (actionLabel(for: snapshot.id) ?? (isStale(snapshot)
                             ? UsageObservationFormatter.compact(observedAt: snapshot.observedAt, now: entry.date, language: language)
-                            : shortReset(snapshot)))
+                            : shortReset(snapshot))))
                             .font(.system(size: 10, weight: .semibold, design: .monospaced))
                             .frame(width: 62, alignment: .trailing)
                             .lineLimit(1)
@@ -677,7 +693,7 @@ private struct UsageWidgetView: View {
     /// The inline host extracts one text payload, not an arbitrary HStack.
     /// Embed bounded image attachments in that payload so both services survive.
     private var inlineText: Text {
-        var result = Text("")
+        var result = Text(isDemo ? "DEMO · " : "")
         for (index, snapshot) in displayedSnapshots.enumerated() {
             if index > 0 { result = result + Text(" · ") }
             let value = actionLabel(for: snapshot.id)?.lowercased(with: language.locale)
@@ -698,7 +714,7 @@ private struct UsageWidgetView: View {
         HStack(spacing: 4) {
             Image(systemName: isStale(snapshot) ? "clock.fill" : "circle.fill")
                 .font(.system(size: isStale(snapshot) ? 7 : 5, weight: .bold))
-            Text(UsageObservationFormatter.compact(observedAt: snapshot.observedAt, now: entry.date, language: language))
+            Text(isDemo ? "DEMO" : UsageObservationFormatter.compact(observedAt: snapshot.observedAt, now: entry.date, language: language))
                 .font(.system(size: 7.5, weight: .bold))
                 .tracking(0.45)
         }
@@ -729,6 +745,8 @@ private struct UsageWidgetView: View {
         .padding(18)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
+
+    private var isDemo: Bool { entry.snapshots.contains { $0.source == .mock } }
 
     private var scopedProvider: UsageProviderID? {
         if case .provider(let provider) = scope { return provider }
@@ -773,6 +791,51 @@ private struct UsageWidgetView: View {
         }
     }
 
+    private func mediumProviderName(_ provider: UsageProviderID) -> String {
+        #if os(iOS)
+        return provider == .claude ? "Claude" : "Codex"
+        #else
+        return provider.displayName
+        #endif
+    }
+
+    private func streakCountText(_ count: Int) -> String {
+        #if os(iOS)
+        let today = entry.history.lastSevenDays(relativeTo: entry.date).last
+        let hasEvidence = today?.activity != nil
+            || today?.claudeTokens != nil || today?.codexTokens != nil
+        return hasEvidence ? String(count) : "—"
+        #else
+        return String(count)
+        #endif
+    }
+
+    #if os(iOS)
+    // Widget copy must fit its surface while retaining quota and uncertainty.
+    private func compactPaceText(_ notice: PaceNotice) -> String {
+        switch notice {
+        case .session(let status):
+            switch status {
+            case .noUsage: return language.text("No session usage yet", "Sesión aún sin uso")
+            case .newSession: return language.text("New session · measuring", "Sesión nueva · calculando")
+            case .measuring: return language.text("Measuring session pace", "Calculando ritmo de sesión")
+            case .unavailable: return language.text("Session pace unavailable", "Ritmo de sesión no disponible")
+            case .onTrack: return language.text("Session pace looks on track", "Sesión: llegarías al reset")
+            case .limitIn(let duration):
+                let time = UsagePaceFormatter.string(duration: duration, minutePrecision: true)
+                return language.text("Session may run out in \(time)", "Sesión: se agotaría en \(time)")
+            }
+        case .weekly(let assessment):
+            switch assessment.state {
+            case .roomToSpare: return language.text("Week: room at this pace", "Semana: margen a este ritmo")
+            case .onTrack: return language.text("Week: may approach limit", "Semana: cerca del límite")
+            case .atRisk: return language.text("Weekly limit at risk", "Riesgo de límite semanal")
+            case .highRisk: return language.text("Weekly limit at high risk", "Riesgo alto de límite semanal")
+            }
+        }
+    }
+    #endif
+
     private func statusText(_ snapshot: ProviderUsageSnapshot) -> String? {
         if let action = actionLabel(for: snapshot.id) { return action }
         if refreshDisposition(snapshot) == .failed {
@@ -781,7 +844,11 @@ private struct UsageWidgetView: View {
         if refreshDisposition(snapshot) == .saved {
             return language.text("LAST SAVED DATA · OPEN APP TO UPDATE", "DATOS GUARDADOS · ABRE LA APP PARA ACTUALIZAR")
         }
+        #if os(iOS)
+        return snapshot.preferredPaceNotice(at: entry.date).map(compactPaceText)
+        #else
         return snapshot.preferredPaceNotice(at: entry.date).map(language.paceNoticeText)
+        #endif
     }
 
     private func statusColor(_ snapshot: ProviderUsageSnapshot) -> Color {
@@ -811,12 +878,13 @@ private struct UsageWidgetView: View {
     }
 
     private func primaryQuotaLabel(_ snapshot: ProviderUsageSnapshot) -> String {
-        snapshot.session.usedPercent == nil ? language.text("WEEK", "SEMANA")
+        if isDemo { return "DEMO" }
+        return snapshot.session.usedPercent == nil ? language.text("WEEK", "SEMANA")
                                             : language.text("SESSION", "SESIÓN")
     }
 
     private func isStale(_ snapshot: ProviderUsageSnapshot) -> Bool {
-        snapshot.source == .cached || snapshot.isStale(at: entry.date)
+        snapshot.source != .mock && (snapshot.source == .cached || snapshot.isStale(at: entry.date))
     }
 
     private func refreshDisposition(_ snapshot: ProviderUsageSnapshot) -> UsageRefreshDisposition {

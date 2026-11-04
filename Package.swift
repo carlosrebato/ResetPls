@@ -27,6 +27,7 @@ let package = Package(
             name: "AIUsageDesignSystem",
             dependencies: ["AIUsageCore"],
             path: "Sources/AIUsageDesignSystem",
+            exclude: ["UsageConnectionPresentation 2.swift"],
             resources: [.process("Resources")]
         ),
         .target(
@@ -50,12 +51,13 @@ let package = Package(
                 .product(name: "Sparkle", package: "Sparkle")
             ],
             path: "App",
-            exclude: ["Assets.xcassets"]
+            exclude: ["Assets.xcassets", "ResetPlsIcon.icon"]
         ),
         .testTarget(
             name: "AIUsageMacTests",
             dependencies: ["AIUsageCore", "AIUsageProviderServices", "AIUsageMacServices", "AIUsageDesignSystem"],
-            path: "Tests/AIUsageMacTests"
+            path: "Tests/AIUsageMacTests",
+            exclude: ["UsageReconnectRenderTests 2.swift"]
         ),
         .testTarget(
             name: "AIUsageProviderServicesTests",

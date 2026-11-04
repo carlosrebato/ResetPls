@@ -28,6 +28,8 @@
 		61AF5A5FDB17C88C70DC350B /* AIUsageProviderServices in Frameworks */ = {isa = PBXBuildFile; productRef = A600D0EA9DD127D415E97E15 /* AIUsageProviderServices */; };
 		6CBC0C10ED5587FB869E5623 /* AIUsageWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 896ACE1407350F5EE0D5B228 /* AIUsageWidgets.swift */; };
 		71B6D5D44FD8506C36D61C62 /* AIUsageCore in Frameworks */ = {isa = PBXBuildFile; productRef = 1C6776C86CC470D976609DDC /* AIUsageCore */; };
+		75D7D1CBB7043204023B6BD2 /* ResetPlsIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 69E8FC5D926BEEBD979B3C9F /* ResetPlsIcon.icon */; };
+		7A5DB70901BCF83576C5F45D /* ResetPlsIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 69E8FC5D926BEEBD979B3C9F /* ResetPlsIcon.icon */; };
 		7AFCA9588C8495F6F4D923A6 /* ConnectionSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04BBC7E8EA18221FEE74D8C5 /* ConnectionSetupView.swift */; };
 		7BDAD2B9D033A44EA0D59E48 /* Sparkle in Frameworks */ = {isa = PBXBuildFile; productRef = 77A71572A0533C443715122C /* Sparkle */; };
 		81F5BC73112C530038382899 /* AppUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B1175E44064FA3670635D17 /* AppUpdater.swift */; };
@@ -108,6 +110,7 @@
 		4B1175E44064FA3670635D17 /* AppUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdater.swift; sourceTree = "<group>"; };
 		53233494284243616896D95E /* IOSWidgetPreviewGallery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSWidgetPreviewGallery.swift; sourceTree = "<group>"; };
 		682E2BB9E803FB0662BAA680 /* AIUsageIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIUsageIOSApp.swift; sourceTree = "<group>"; };
+		69E8FC5D926BEEBD979B3C9F /* ResetPlsIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = ResetPlsIcon.icon; sourceTree = "<group>"; };
 		6E807D698482110899B3D06D /* ClaudeDesktopAccessPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeDesktopAccessPicker.swift; sourceTree = "<group>"; };
 		7A8C5B96141520571B022EA1 /* ClaudeBrowserLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeBrowserLogin.swift; sourceTree = "<group>"; };
 		80F3A97FAFB482A477083468 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
@@ -121,8 +124,8 @@
 		CBEB9DBCAD3BB4D03259BD97 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
 		D8844BC471D00DAE4CA07A4F /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		DB562CA2D1EE582B8E28475E /* AIUsageIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = AIUsageIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		EA518BE171100A418E164541 /* resetpls-reconnect-ui-20261020 */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "resetpls-reconnect-ui-20261020"; path = .; sourceTree = SOURCE_ROOT; };
 		F17790B1FDFFFA95070A3874 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FD9FCC85E72F09490E5DC86C /* ResetPls */ = {isa = PBXFileReference; lastKnownFileType = folder; name = ResetPls; path = .; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -210,7 +213,7 @@
 		65C9F6C49F90B59D7DAD9264 /* Packages */ = {
 			isa = PBXGroup;
 			children = (
-				EA518BE171100A418E164541 /* resetpls-reconnect-ui-20261020 */,
+				FD9FCC85E72F09490E5DC86C /* ResetPls */,
 			);
 			name = Packages;
 			sourceTree = "<group>";
@@ -229,6 +232,7 @@
 				8EF66BFFCA242CE4776551F2 /* FloatingPanelView.swift */,
 				CBEB9DBCAD3BB4D03259BD97 /* MenuBarView.swift */,
 				9BA2A443BF3B5552C6D5E824 /* OnboardingView.swift */,
+				69E8FC5D926BEEBD979B3C9F /* ResetPlsIcon.icon */,
 				26BC9C6C2BB3A2D8E8AD2508 /* SettingsView.swift */,
 			);
 			path = App;
@@ -433,6 +437,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				12F73AF21BF9F35F7D11F96F /* Assets.xcassets in Resources */,
+				75D7D1CBB7043204023B6BD2 /* ResetPlsIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -442,6 +447,7 @@
 			files = (
 				3ED411F22D15967C1C97CE9F /* Assets.xcassets in Resources */,
 				A4E4C9197B484B20A2669BB4 /* PrivacyInfo.xcprivacy in Resources */,
+				7A5DB70901BCF83576C5F45D /* ResetPlsIcon.icon in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -534,11 +540,11 @@
 		08AC5941E2708E5849FE03A9 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = ResetPlsIcon;
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 58;
+				CURRENT_PROJECT_VERSION = 68;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Configurations/AIUsageIOS-Info.plist";
@@ -570,7 +576,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOSWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 58;
+				CURRENT_PROJECT_VERSION = 68;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				INFOPLIST_FILE = "Configurations/AIUsageIOSWidgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -609,11 +615,11 @@
 		454EFA511EB239C1C72E5EB1 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = ResetPlsIcon;
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 58;
+				CURRENT_PROJECT_VERSION = 68;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "Configurations/AIUsageIOS-Info.plist";
@@ -680,7 +686,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 59;
+				CURRENT_PROJECT_VERSION = 68;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -750,7 +756,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				AI_USAGE_APP_GROUP = "$(DEVELOPMENT_TEAM).com.carlosrebato.aiusage";
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = ResetPlsIcon;
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -772,7 +778,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				AI_USAGE_APP_GROUP = "$(DEVELOPMENT_TEAM).com.carlosrebato.aiusage";
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_APPICON_NAME = ResetPlsIcon;
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -796,7 +802,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = Configurations/AIUsageIOSWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 58;
+				CURRENT_PROJECT_VERSION = 68;
 				DEVELOPMENT_TEAM = 467CC6L4BF;
 				INFOPLIST_FILE = "Configurations/AIUsageIOSWidgets-Info.plist";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -877,7 +883,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 59;
+				CURRENT_PROJECT_VERSION = 68;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;

@@ -1,6 +1,6 @@
 # ResetPls — iOS App Review notes
 
-Release candidate: 0.1.7 (54). TestFlight validation is not App Store approval.
+Release candidate: 1.0 (66). TestFlight validation is not App Store approval.
 
 ## Reviewer instructions (English)
 
@@ -27,8 +27,8 @@ Sign out separately in Settings → Accounts.
 Home Screen widgets: small (choose one service via Edit Widget), medium (both
 services), large (both services and chart). Lock Screen widgets: inline,
 circular (one service), rectangular (both services). The system widget gallery
-uses fresh synthetic previews. Installed widgets use real account data and do
-not inherit the app's in-memory demo. iOS decides background refresh timing;
+uses fresh synthetic previews. Installed widgets display labeled sample data while demo mode is active.
+Exiting demo restores real account readings without overwriting caches or history. iOS decides background refresh timing;
 an update at a fixed interval is not guaranteed. Saved readings and failed
 updates are distinguished from fresh readings.
 
@@ -39,6 +39,9 @@ and therefore does not display desktop token totals.
 
 Pace text is an estimate based on recorded quota/time observations, not a
 provider guarantee. ResetPls has no StoreKit purchases, chat, or push alerts.
+
+Settings also links to the free Mac app download section on resetpls.app.
+The Mac app is optional; the iPhone app connects to providers independently.
 
 The app queries read-only provider usage endpoints through public clients.
 These are not documented third-party integration APIs. Do not represent them
